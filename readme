@@ -1,0 +1,18 @@
+A number of sampler implementations in Python. 
+emcee.py contains a class for running the affine invariant sampling method described in Goodman and Weare (2010). It only implements the stretch move and the walk move.
+pt_emcee.py adds parallel tempering to the affine invariant sampler in emcee.py. The current implementation runs an ensemble for each temperature in a temperature ladder. Swaps occur between the temperature ensembles by randomly pairing walkers from the ensembles of two different temperatures and using the acceptance ratio from e.g. Geyer and Thompson 1995, Sambridge 2013, others. 
+
+mh.py implements a generic Metropolis-Hastings sampler class where the proposal function is not specified. It also implements an adaptive sampler that uses a Gaussian proposal distribution with a learned covariance from the chain (as in Haario 2001). 
+
+pt.py implements a parallel tempered adaptive sampler that uses a chain of temperatures, each of which uses the adaptive proposal described above. 
+
+likelihoods.py contains some likelihood functions for testing and benchmarking the samplers. 
+
+helpers.py contains some functions for calculating the integrated autocorrelation time for a sequence of samples of a function.
+
+online_scm contains the functions for recursively updating a sample covariance matrix estimate as new realizations of the process come online. 
+
+In the examples folder, there are a few scripts to test the samplers on various likelihood functions. 
+In particular, emcee_rosenbrock.py contains a test script for comparison of the emcee implementation and IACT function in helpers.py with the results of Goodman and Weare (2010). 
+pt_emcee_multimodal applies pt_emcee.py to a mixture of colored Gaussian distribution. 
+Playing around with these scripts shows how to use some of these samplers on a likelihood function that you have implemented in Python. 
