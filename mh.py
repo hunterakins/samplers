@@ -310,7 +310,7 @@ def adaptive_colored_gaussian_test():
 
     # get 1000 samples from the distribution
     x0 = np.zeros(num_params)
-    N = 100000
+    N = 10000
     sigma0 = 20*np.eye(num_params) # standard deviation for mu
     sd =(2.4)**2 / x0.size # default scale factor # from Haario
     sd /= 1
@@ -389,6 +389,6 @@ def adaptive_multimodal_gaussian_test():
 
 if __name__ == '__main__':
     #adaptive_gaussian_test()
-    #adaptive_colored_gaussian_test()
-    adaptive_multimodal_gaussian_test()
+    adaptive_colored_gaussian_test()
+    #adaptive_multimodal_gaussian_test()
     #gaussian_test()
