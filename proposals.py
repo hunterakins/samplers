@@ -12,11 +12,7 @@ Institution: Scripps Institution of Oceanography, UC San Diego
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import rc
-rc('text', usetex=True)
-import matplotlib
-matplotlib.rcParams['mathtext.fontset'] = 'stix'
-matplotlib.rcParams['font.family'] = 'STIXGeneral'
+from numba import jit, njit
 
 
 def gaussian_proposal(x, **kwargs):
@@ -28,5 +24,15 @@ def gaussian_proposal(x, **kwargs):
     sigma_prop = kwargs['sigma']
     num_params = x.size
     x_new = np.random.multivariate_normal(x, sigma_prop)
+    qxx = 1 # symmetric so ratio of densitys is 1
+    return x_new, qxx
+
+@njit
+def jit_gaussian_proposal(x, sigma_eigs, sigma_eigvecs):
+    num_params = x.size
+    x_new = x.copy()
+    for i in range(num_params):
+        tmp = np.random.randn() * np.sqrt(sigma_eigs[i])
+        x_new += tmp * sigma_eigvecs[:, i]
     qxx = 1 # symmetric so ratio of densitys is 1
     return x_new, qxx

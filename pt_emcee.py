@@ -273,7 +273,7 @@ class ParallelTemperedAffineInvariantSampler:
         for k in range(num_temps):
             fig1, axes = plt.subplots(2,1)
             fig1.suptitle('Temperature: {}'.format(self.temps[k]))
-            print(np.mean(self.log_probs[k,...], axis=0)[N_burn_in:])
+            #print(np.mean(self.log_probs[k,...], axis=0)[N_burn_in:])
             axes[1].plot(np.mean(self.acceptance_ratios[k,...], axis=0)[N_burn_in:])
             #axes[0,1].plot(self.samples)
             axes[0].plot(np.mean(self.log_probs[k,...], axis=0)[N_burn_in:])
@@ -290,7 +290,7 @@ class ParallelTemperedAffineInvariantSampler:
                     fig2, axes = plt.subplots(num_cols, num_cols)
                 else:
                     num_cols = int(np.sqrt(self.dim))+1
-                    fig2, axes = plt.subplots(num_cols-1, num_cols)
+                    fig2, axes = plt.subplots(num_cols, num_cols)
                 for i in range(self.dim):
                     ax_row = int(i/num_cols)
                     ax_col = i % num_cols

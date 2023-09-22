@@ -12,12 +12,9 @@ Institution: Scripps Institution of Oceanography, UC San Diego
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import rc
-rc('text', usetex=True)
-import matplotlib
-matplotlib.rcParams['mathtext.fontset'] = 'stix'
-matplotlib.rcParams['font.family'] = 'STIXGeneral'
+from numba import njit
 
+@njit
 def update_mean(mun, xn1, n):
     """
     mu_n = \frac{1}{n} \sum_{i=1}^{n} x_i
@@ -27,6 +24,7 @@ def update_mean(mun, xn1, n):
     mu_n1 = n/(n+1) * mun + 1/(n+1)*xn1
     return mu_n1
 
+@njit
 def update_scm(Cn, mun, xn1, n):
     """
     Return recursive update to the biased (normalized by N)

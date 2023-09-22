@@ -137,6 +137,21 @@ def calculate_iact(samples, f, N_burn_in, verbose=False, strict=False):
             print('M is not large enough to get a good estimate of tau')
     return M_list, tau_list
 
+def get_opt_acc(dim):
+    """BAsed on table I in Gelman Robert Gilks 1996 """
+    if dim == 1:
+        return 0.44
+    elif dim == 2:
+        return 0.352
+    elif dim == 3:
+        return 0.316
+    elif dim == 4:
+        return 0.279
+    elif dim == 5:
+        return 0.275
+    else: # return asymptotic acceptance rate
+        return 0.234
+
 
 if __name__ == '__main__':
     test_acorr()

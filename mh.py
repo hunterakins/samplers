@@ -44,7 +44,7 @@ class MHSampler:
         dim = x0.size
         samples = np.zeros((dim,N))
         log_probs = np.zeros((N))
-        samples[0] = x0.copy() # initial sample
+        samples[:,0] = x0.copy() # initial sample
         acceptance_ratios = np.zeros(N)
         xcurr = x0.copy()
         log_p_curr = self.f_log_p(xcurr, **self.f_log_p_kwargs)

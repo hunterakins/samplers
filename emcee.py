@@ -163,13 +163,11 @@ class AffineInvariantSampler:
                 self.log_probs[walker_i, i] = self.log_p_curr[walker_i]
                 self.acceptance_ratios[walker_i, i] = self.num_accepted[walker_i] / i
 
-
     def njit_sample(self, x0, N):
         samples, log_probs, acceptance_ratios = njit_sample(x0, N, self.dim, self.L, self.f_log_p,self.a)
         self.samples = samples
         self.log_probs = log_probs
         self.acceptance_ratios = acceptance_ratios
-
 
     def calculate_iact(self, f, N_burn_in):
         """
@@ -202,11 +200,10 @@ class AffineInvariantSampler:
                 fig2, axes = plt.subplots(num_cols, num_cols)
             else:
                 num_cols = int(np.sqrt(self.dim))+1
-                fig2, axes = plt.subplots(num_cols-1, num_cols)
+                fig2, axes = plt.subplots(num_cols, num_cols)
             for i in range(self.dim):
                 ax_row = int(i/num_cols)
                 ax_col = i % num_cols
-                print(axes.shape, ax_col)
                 if len(axes.shape) == 1:
                     axes[ax_col].hist(self.samples[i,:,:].flatten(), bins=50, density=density)
                 else:
@@ -225,17 +222,17 @@ def test_g():
     plt.plot(z_vals, norm/(2*np.sqrt(z_vals)), 'r')
     plt.show()
 
-from numba import njit
+from numba import njit, jit
 import numba as nb
 
-@njit
+@njit(cache=True)
 def njit_draw_g(a):
     Delta = np.sqrt(a) - 1/np.sqrt(a)
     U = Delta*(np.random.rand()) + 1/np.sqrt(a)
     z = np.square(U)
     return z
 
-@njit
+@njit(cache=True)
 def njit_stretch_move(walker_i, xcurr,L, a, dim, f_log_p, log_p_curr, num_accepted):
     ind_vals = np.linspace(0, L-1, L)
     xk = xcurr[:, walker_i]
@@ -255,7 +252,7 @@ def njit_stretch_move(walker_i, xcurr,L, a, dim, f_log_p, log_p_curr, num_accept
         num_accepted[walker_i] += 1
     return  xcurr, log_p_curr, num_accepted
 
-@njit
+@njit(cache=True)
 def njit_sample(x0, N, dim, L, f_log_p, a):
     """
     Get N samples from the distribution p
@@ -275,7 +272,7 @@ def njit_sample(x0, N, dim, L, f_log_p, a):
     acceptance_ratios = np.zeros((L, N))
     log_probs = np.zeros((L, N))
 
-    ind_vals = np.linspace(0, L-1, L, dtype=int)
+    ind_vals = np.linspace(0, L-1, L)
     for i in range(1,N):
         for walker_i in range(L):
             xcurr, log_p_curr, num_accepted = njit_stretch_move(walker_i, xcurr, L, a, dim, f_log_p, log_p_curr, num_accepted)
