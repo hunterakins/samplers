@@ -110,17 +110,21 @@ def get_H(tgrid, poly_dim):
 
 def run_simulation():
     poly_dim = 5
-    N = 100
+    N = 30
     tgrid = np.linspace(-1.0, 1.0, N)
 
     poly_mean = np.zeros(poly_dim)
     poly_sigma = 1.0
-    noise_b = 0.1
     prop_sigma = 1.0
 
-    #m_true = np.random.randn(poly_dim) * poly_sigma
+    snr_db = 20
     m_true = np.load('m_true.npy')
     y_true = np.polyval(m_true, tgrid)
+    noise_var = (np.var(y_true)/(10**(snr_db/10)))
+    noise_b = np.sqrt(noise_var)
+    y = np.copy(y_true)
+
+    #m_true = np.random.randn(poly_dim) * poly_sigma
     y_meas = y_true + np.random.laplace(loc=0.0, scale=noise_b, size= len(tgrid))
 
     noise = y_meas - y_true
@@ -144,7 +148,7 @@ def run_simulation():
 
 
 
-    sd = 5 * 1e-2 # based on the plots above...
+    sd = 5 * 1e-2# based on the plots above...
     N= int(1e5)
     N_burn = 1e4
     f_proposal = get_f_proposal(sd*prop_sigma)
@@ -191,14 +195,14 @@ def run_simulation():
     plt.legend()
     plt.savefig(pics_folder + 'laplac_poly_estimation.pdf')
     plt.figure()
-    plt.suptitle('Accept. ratio')
-    plt.plot(acceptance_ratios)
+    plt.ylabel('Accept. ratio')
+    plt.plot(acceptance_ratios, 'k')
     plt.xlabel('Iteration')
     plt.savefig(pics_folder + 'laplac_poly_acceptance_ratio.pdf')
 
     plt.figure()
-    plt.suptitle('Log probs')
-    plt.plot(log_probs)
+    plt.ylabel('Log probs')
+    plt.plot(log_probs, 'k')
     plt.xlabel('Iteration')
     plt.savefig(pics_folder + 'laplac_poly_log_probs.pdf')
 

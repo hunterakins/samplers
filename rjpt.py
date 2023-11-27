@@ -102,7 +102,7 @@ def mh_walk(x0, N_tune, f_proposal, prop_cov, f_log_prior, f_log_lh, beta):
         log_prior = f_log_prior(xprime)
         log_lh = f_log_lh(xprime)
         log_p = log_prior + beta*log_lh
-        alpha = (log_p) - (curr_log_p + 0) # assumes symmetric proposal 
+        alpha = (log_p) - (curr_log_p + 0.0) # assumes symmetric proposal 
         alpha = np.exp(alpha)
         if np.random.rand() < alpha: #accept move
             x_samples[:,j] = xprime
@@ -140,8 +140,11 @@ class AdaptiveTransDPTSampler:
         self.f_log_lh = f_log_lh
         self.f_proposal = f_proposal
         self.f_log_gprime = f_log_gprime
-        self.birth_sigma_sq = np.array([1.0])
+        self.birth_sigma_sq = np.array([.25])
         self.no_birth_death=False
+
+        self.death_log_p_ratio = []
+        self.birth_log_p_ratio = []
 
     def tune_proposal(self, N_tune, f_prior):
         """
@@ -285,7 +288,9 @@ class AdaptiveTransDPTSampler:
         log_prior = self.f_log_prior(xprime)
         log_lh = self.f_log_lh(xprime)
         log_p = log_prior + beta*log_lh # use temperature of chain...
-        alpha = (log_p + 0 + np.log(p_death)) - (curr_log_p + log_gu + np.log(p_birth)) 
+        alpha = (log_p - curr_log_p) +  (0.0 - log_gu) +  (np.log(p_death) - np.log(p_birth))
+        if i == 1:
+            self.birth_log_p_ratio.append(alpha)
         alpha = np.exp(alpha)
         if np.random.rand() < alpha: # accept step
             chain.samples[:,j+1] = xprime.copy()
@@ -327,8 +332,11 @@ class AdaptiveTransDPTSampler:
         sigma_sq = self.birth_sigma_sq
         log_guprime = self.f_log_gprime(u, **{'sigma_sq':sigma_sq})
         log_p = log_prior + beta*log_lh
-        alpha = (log_p + log_guprime + np.log(p_birth)) - (curr_log_p + 0 + np.log(p_death))
+        alpha = (log_p - curr_log_p) + (log_guprime - 0.0) + (np.log(p_birth)- np.log(p_death))
+        if i == 1:
+            self.death_log_p_ratio.append(alpha)
         alpha = np.exp(alpha)
+
         
         if np.random.rand() < alpha: #accept move
             chain.samples[:,j+1] = xprime 

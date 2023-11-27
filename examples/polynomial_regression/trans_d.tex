@@ -1,0 +1,572 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{physics}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{verbatim}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	filecolor=magenta,      
+	urlcolor=blue,
+	citecolor=blue
+}
+
+
+\title{
+	Trans-dimensional MCMC tutorial
+}
+
+\author{
+	Hunter Akins
+}
+
+\begin{document}
+	
+	\maketitle
+
+\tableofcontents
+\clearpage
+
+
+\section{Introduction}
+
+This document details the development of a trans-dimensional sampler, motivated by a polynomial regression problem.
+
+\section{Polynomial problem}
+
+This section introduces notation for the polynomial problem. By polynomial problem, we mean the problem of inferring underlying polynomial coefficients $m$ by analyzing measurements y of the polynomial values corrupted with additive noise. Later we will compare the familiar linear inverse solution to a more general Bayesian inference of the posterior distribution.
+
+\subsection{Measurement model}
+
+Assume that we have made $N$ measurements, $y_{1}, y_{2}, \ldots, y_{N}$ of a system state at times $t_{1}, t_{2}, \ldots, t_{N}$. We have reason to believe that the measurements are corrupted with additive noise obeying some probability distribution. We also have reason to believe that the underlying process $f(t)$ that drives the system state follows a polynomial model, the coefficients of which we would like to know: $f\left(t, m_{0}, m_{1}, \ldots, m_{k}\right)=\sum_{l=0}^{k} m_{l} t^{l}$. That is, the system state is perfectly determined by knowledge of the polynomial coefficients $m_{i}$ and the time $t$. The data model for the measurements is
+
+\begin{equation}
+y_{i}=f\left(t_{i}, m_{0}, m_{1}, \ldots, m_{k}\right)+n_{i}=\sum_{l=0}^{k} m_{l} t_{i}^{l}+n_{i}
+\end{equation}
+
+where $n_{i}$ is the additive noise obeying from some joint distribution on the noise $P_{n_{1}, n_{2}, \ldots, n_{N}}\left(n_{1}, n_{2}, \ldots, n_{N}\right)$.
+
+\subsection{Vector notation}
+
+Let's store the polynomial coefficients in a vector $m$. Let $t$ be the column vector of the $N$ time values $\left[t_{1}, t_{2}, \ldots, t_{N}\right]^{T}$ at which we have made measurements. We can use the notation $t^{l}$ to denote this column vector with each of its elements raised to the power $l$.
+
+Let
+\begin{equation}
+H=\left(\begin{array}{llll}
+	t^{0} & t^{1} & \vdots & t^{k}
+\end{array}\right)
+\end{equation}
+be the $N \times k+1$ matrix with $i$ th columns given by the time samples raised to the $i$ th power.
+
+Then, the collection of values $f\left(t_{i}\right)$ in a vector $\hat{y}=\left(f\left(t_{1}\right) \quad f\left(t_{2}\right) \quad \ldots, f\left(t_{N}\right)\right)^{T}$ is linear in $m$
+\begin{equation}
+\hat{y}=H m \text {. }
+\end{equation}
+Last, we need to collect the noise values $n_{i}$ into a vector $n$ which is distributed according to the joint distribution of the noise values. We now write the measurement model in vector form:
+\begin{equation}
+y=H m+n . 
+\end{equation}
+
+Since the noise is random, the measurement is also random, with statistics determined by $H, m$, and the statistics of $m$.
+
+\subsection{Solving the problem}
+
+At this point, the problem is as follows: "Given measurement values in the vector $y$, tell me what the polynomial coefficients in $m$ are?" However, the randomness of $n$ makes it impossible to know precisely what $m$ is.
+
+Suppose we knew exactly what the noise realization $n$ was. Then we could solve for $m$ as
+\begin{equation}
+m=H^{-1}(y-n),
+\end{equation}
+assuming that $H$ is invertible. This requires that $H$ be square, and therefore $N=k+1$. If $N<k+1$, the problem is underdetermined and there are infinitely many choices for the polynomial coefficients $m$ that solve the problem. If $N>k+1$, then presumably the measurements become redundant and the problem is still solvable (assuming that the system truly follows the correct model). Linear inverse theory addresses the problems where $N \neq k+1$.
+
+The assumption that we know the noise realization $n$ basically corresponds to very high signalto-noise ratio. In this case we basically know that $n$ is equal to 0 (i.e. that $y-n \approx y$ ). Then we can solve the problem using linear inverse theory. However, when we only know the distribution of $n$, we can obtain a statistical description of $m$ that conveys the information that the measurement contains regarding the coefficients. This is what is meant by "solving the problem". That is: "Given measurement values in $y$ and a probability distribution on the noise $n$, give me a probability distribution on $m$ that captures the uncertainty in the measurements' relationship to the coefficients $m$. Linear inverse theory is also relevant here as it ....
+
+\section{Bayesian formulation of the polynomial problem}
+
+This section covers the Bayesian formulation of the polynomial problem. In this formulation of the problem, there is presumed to be prior knowledge of the polynomial coefficients, represented as a (joint) probability distribution on $m$. The polynomial problem is therefore to use the information in the measurements $y$ to update the distribution on $m$.
+
+\subsection{Prior distribution}
+
+We assume that there is a prior distribution on the polynomial coefficients $p_{m}(m)$. For example, suppose that the system state is set by configuring some knobs on a user interface. The knobs undergo thermal motion, and therefore wander from their initial setting in a random fashion. If the variance of this thermal motion is known, we have a statistical distribution that reflects our knowledge about their current state (given that we know their original configuration).
+
+Continuing this example, suppose that all the knobs are originally set to 0 , and the thermal motion is a Wiener process with a knob-dependent variance $\sigma_{l}^{2}$. Let $\Sigma_{M}=\operatorname{diag}\left(\sigma_{0}^{2}, \sigma_{1}^{2}, \ldots, \sigma_{N}^{2}\right)$. Then
+\begin{equation}
+p_{m}(m)=\exp \left(-m^{T} \Sigma_{M}^{-1} m\right) / \sqrt{2 \pi \operatorname{det}\left(\Sigma_{M}\right)} .
+\end{equation}
+Note that since $\Sigma_{M}$ is diagonal, the determinant is simply a product of individual variances $\operatorname{det}\left(\Sigma_{M}\right)=\prod_{l=0}^{k} \sigma_{l}^{2}$. After a long time has passed, $\sigma_{l}$ becomes very large, which limits the bias that our prior knowledge asserts.
+\subsection{Likelihood function}
+
+The likelihood function $p_{y \mid m}(y \mid m)=\mathcal{L}(m)$ is the probability distribution function for making a measurement $y$, given that the true polynomial coefficients are fixed at $m$. Somewhat confusingly,
+the notation for $\mathcal{L}$ suppresses the dependence of the function on the measurements $y$. This is because ultimately these will be "given", at which point the function is really only varying over possible model state $m$.
+
+For an given value of $m$, we have that $y=H m+n$. The probability of making a measurement $y$ is therefore the probability that the noise assumes a value $y-H m$. If the noise has a probability distribution function (pdf) $p_{n}(n)$, then the likelihood function is $\mathcal{L}(m)=p_{n}(y-H m)$. For example, with a zero-mean white Gaussian noise model $n \sim \mathcal{N}\left(0, \sigma^{2} I\right)$, the likelihood function is
+\begin{equation}
+\mathcal{L}(m)=p(y \mid m)=\exp \left(-\frac{\|y-H m\|^{2}}{2 \sigma^{2}}\right) /(2 \pi \sigma)^{N / 2} .
+\end{equation}
+
+\subsection{Bayes' rule}
+
+Ultimately, we would like to sample the posterior probability distribution of the polynomial coefficients $m$, given prior information about $m$ in $p_{m}(m)$ and the information from the measurement in the likelihood function $\mathcal{L}=p_{y \mid m}(y \mid m)$. The posterior distribution of $m$ conditioned on the measurements $y$ is given in terms of the likelihood and the prior distribution by Bayes' rule
+\begin{equation}
+p_{m \mid y}(m \mid y)=\frac{p_{y \mid m}(y \mid m) p_{m}(m)}{p_{y}(y)} .
+\end{equation}
+
+The denominator $p_{y}(y)=\int_{M} p_{y \mid m}(y \mid m) p_{m}(m)$ is the "evidence" and captures how likely the mesaurement $y$ is. $p_{m}(m)$ is the prior distribution of $m$ : it is independent of the measurement value $y$. We also recognize the likelihood function in the numerator $\mathcal{L}(m)=p_{y} \mid m(y \mid m)$.
+
+In terms of the likelihood function $\mathcal{L}$ the posterior distribution of $m$ is
+\begin{equation}
+p_{m \mid y}(m \mid y)=\frac{\mathcal{L}(m) p_{m}(m)}{c}
+\end{equation}
+where I have introduced the constant $c=p_{y}(y)$ to denote the evidence. In MCMC sampling methods, the evidence need not be known to obtain samples from the posterior distribution.
+
+\subsection{Example: Posterior distribution for prior and noise Gaussian distributions}
+\label{gaussiangaussian}
+
+In the case that both the noise follows a Gaussian distribution and the prior model uncertainty follows a Gaussian distribution, the posterior distribution will be a product of two Gaussian functions and therefore is a Gaussian as well (this is a well-known result). Using results from Kay (1993), Chapter 10, we have that the mean of the posterior Gaussian is
+\begin{equation}
+\label{eq:gaussianpostmean}
+E(m \mid y)=\Sigma_{M} H^{T}\left(H \Sigma_{m} H^{T}+\sigma^{2} I\right)^{-1}(y)
+\end{equation}
+and the covariance is
+\begin{equation}
+\label{eq:gaussianpostcov}
+\Sigma_{m \mid y}=\Sigma_{M}-\Sigma_{M} H^{T}\left(H \Sigma_{M} H^{T}+\sigma^{2} I\right)^{-1} H \Sigma_{M} .
+\end{equation}
+
+This is a useful result for validating our code, since we can check that our sampler provides samples with the appropriate mean and covariance.
+
+\subsection{Bayesian evidence for Gaussian linear model (Gaussian prior and Gaussian noise)}
+Consider a model labeled by $k$ and data $y$.
+Bayes' rule assigns the posterior distribution to states $\theta_k$ 
+\begin{equation}
+	p(\theta_k | k, y) = \frac{p(\theta_k | k) p(y | k, \theta_k)}{p(y | k)} . 
+\end{equation}
+Usually the model dependence of Bayes' rule is suppressed (there is only one model under consideration).
+If we have multiple models indexed by $k$ with a prior distribution $p(k)$, the posterior distribution over models is also given by Bayes rule
+\begin{equation}
+	p(k | y) = \frac{p(y | k ) p(k)}{p(y)} .
+\end{equation}
+Note that if we have two models, we can find the ratio of their probabilities by calculating \begin{equation} 
+	\frac{p(k_1 | y)}{p(k_2 | y)} = \frac{p(y | k_1 ) p(k_1)}{p(y | k_2) p(k_2)} .
+\end{equation}
+
+%For the Gaussian linear model, the data is related to the parameter by a linear model $H$:
+%\begin{equation}
+%	y = H\theta_k + n 
+%\end{equation}
+%where the model has prior mean $\mu_\theta$ and covariance $P$ and noise has covariance $\Sigma$.
+%The posterior for this model is (from Kay chapter 10)
+%\begin{equation}
+%p(\theta_k, k | y) = \frac{\exp(-\frac{1}{2} (\theta_k - \mu_p)^T \Sigma_p^{-1}(\theta_k - \mu_p)^T)}{(2\pi)^{k/2} \det(\Sigma_p)^{1/2}} \; 
+%\end{equation}
+%where \begin{equation}
+	%\mu_p = \mu_\theta + PH^T(H P H^T + \Sigma)^{-1}(y - H \mu_\theta) 
+	%\end{equation}
+	%and 
+	%\begin{equation}
+	%	\Sigma_p = P - PH^T(HPH^T + \Sigma)^{-1} H P .
+	%\end{equation}
+	%Note that $\Sigma_p^{-1} = P^{-1} + H^T \Sigma^{-1} H $. 
+	
+	For the Gaussian linear model, the data is related to the parameter by a linear model $H$:
+	\begin{equation}
+		y = H\theta_k + n 
+	\end{equation}
+	where the model has prior mean $0$ and covariance $P$ and noise has covariance $\Sigma$.
+	%The posterior for this model is (from Kay chapter 10)
+	%\begin{equation}
+	%p(\theta_k, k | y) = \frac{\exp(-\frac{1}{2} (\theta_k^T \Sigma_p^{-1}\theta_k^T)}{(2\pi)^{k/2} \det(\Sigma_p)^{1/2}} \; 
+	%\end{equation}
+	%where \begin{equation}
+		%	\mu_p = PH^T(H P H^T + \Sigma)^{-1}y
+		%	\end{equation}
+	%	and 
+	%	\begin{equation}
+		%		\Sigma_p = P - PH^T(HPH^T + \Sigma)^{-1} H P .
+		%	\end{equation}
+	%	Note that $\Sigma_p = (P^{-1} + H^T \Sigma^{-1} H)^{-1} $. 
+	
+	To get the evidence for a given model, we can work backwards from the posterior given by Bayes' Rule:
+	\begin{align}
+		p(\theta | y)
+		&= \mathbb{Z}^{-1} \frac{\exp{-\frac{1}{2}\qty[\theta^T P^{-1} \theta + (y - H\theta)^T \Sigma^{-1}(y - H\theta)]} }{(2 \pi)^{(k+n)/2} \det(P)^{1/2} \det(\Sigma)^{1/2} } 
+		%	&= \mathbb{Z}^{-1} \frac{\exp{-\frac{1}{2}\qty[(\theta - \mu_\theta)^T \Sigma_p^{-1}(\theta - \mu_\theta) - 2 (\theta - \mu_\theta)^T(H^{T} \Sigma^{-1} y) + y^T\Sigma^{-1} y]} }{(2 \pi)^{(k+n)/2} \det(P)^{1/2} \det(\Sigma)^{1/2} } \\
+	\end{align}
+	Rearrange to obtain
+	\begin{align}
+		p(\theta | y)
+		&= \mathbb{Z}^{-1} \frac{\exp{-\frac{1}{2}\qty[\theta^T \Sigma_p^{-1}\theta - 2 \theta^T(H^{T} \Sigma^{-1} y) + y^T\Sigma^{-1} y]} }{(2 \pi)^{(k+n)/2} \det(P)^{1/2} \det(\Sigma)^{1/2} } .
+	\end{align}
+	where \begin{equation}
+		\Sigma_p = (P^{-1} + H^T \Sigma^{-1} H)^{-1} .
+	\end{equation}
+	We now want to complete the square with
+	\begin{equation}
+		\theta^T \Sigma_p^{-1}\theta - 2 \theta^T(H^{T} \Sigma^{-1} y) + y^T\Sigma^{-1} y = (\theta - h)^T A (\theta -h) + k .
+	\end{equation}
+	We can use the formula
+	\begin{equation}
+		v^T A v + v^T b + c = (v-h)^T A (v-h) + k 
+	\end{equation}
+	with $ h = -\frac{1}{2} A^{-1} b $ and $k = c - \frac{1}{4}b^T A^{-1}b $
+	applied to $ v= \theta$, $A = \Sigma_p^{-1}$, $b= -2 H^T \Sigma^{-1} y$, and $c = y^T \Sigma^{-1} y$.
+	We end up with
+	\begin{equation}
+		(\theta -  \Sigma_p H^T \Sigma^{-1}y)^T \Sigma_p^{-1} (\theta- \Sigma_p H^T \Sigma^{-1} y) + y^{T} \Sigma^{-1} y - y^T \Sigma^{-1} H \Sigma_p H^T \Sigma^{-1} y . 
+	\end{equation}
+	Introduce $\mu_p = \Sigma_p H^T y $ as the posterior mean and $\Sigma_p$ is the posterior covariance. 
+	Then this expression can be written
+	
+	\begin{equation}
+		(\theta -  \mu_p)^T \Sigma_p^{-1} (\theta- \mu_p) + y^{T} \Sigma^{-1} y -  \mu_p \Sigma_p^{-1}  \mu_p. 
+	\end{equation}
+	Then 
+	\begin{align}
+		p(\theta | y)
+		&= \mathbb{Z}^{-1} \exp{-\frac{1}{2} y^{T} \Sigma^{-1} (y -  H \mu_p) }\frac{\exp{-\frac{1}{2}\qty[	(\theta -  \mu_p)^T \Sigma_p^{-1} (\theta- \mu_p)]} }{(2 \pi)^{(k+n)/2} \det(P)^{1/2} \det(\Sigma)^{1/2} } .
+	\end{align}
+	Integrating over $\theta$ and enforcing normalization of the posterior we get
+	\begin{equation}
+		1 = \mathbb{Z}^{-1} \exp{-\frac{1}{2} y^{T} \Sigma^{-1} (y -  H \mu_p) }\frac{(2 \pi)^{k/2} \det(\Sigma_p)^{1/2}}{(2 \pi)^{(k+n)/2} \det(P)^{1/2} \det(\Sigma)^{1/2} } .
+	\end{equation}
+	The evidence is therefore 
+	
+	\begin{equation}
+		\label{eq:gaussiangaussianevidence}
+		\mathbb{Z} = \exp{-\frac{1}{2} \qty[y^{T} \Sigma^{-1} y -  \mu_p^T\Sigma_p^{-1}\mu_p]}\frac{\det(\Sigma_p)^{1/2}}{(2 \pi)^{n/2} \det(P)^{1/2} \det(\Sigma)^{1/2} } .
+	\end{equation}
+
+
+%A single model therefore has posterior distribution
+%\begin{equation}
+%	p(\theta_k, k | y) = p(\theta_k | k, y) p(k) = p(k) 
+%\end{equation}
+
+\subsection{Summary}
+
+The polynomial problem can be framed in terms of Bayesian inference as using the measurement $y$ and noise statistics to transform a prior distribution on $m$ to a posterior distribution.
+The mean and covariance have analytic formulas given in equations \eqref{eq:gaussianpostmean} and \eqref{eq:gaussianpostcov}.
+The evidence for a model also has a closed form \eqref{eq:gaussiangaussianevidence}. 
+
+
+\section{Sampling}
+
+In the previous section we laid out a polynomial regression problem, framing it in the context of Bayes' theorem as the problem of solving for a posterior distribution. This section asserts that "solving for a posterior distribution" can be framed as "sampling from a distribution".
+
+Assuming that the model is correctly specified and the noise statistics are correctly specified, then the posterior distribution function $p_{m \mid y}(m \mid y)$ gives this statistical description and contains all of the information about the underlying polynomial coefficients that we can obtain by combining our measurement $y$ and our prior knowledge. The posterior distribution can then be used to calculate a "best" set of polynomial coefficients given some desired objective. For example, the expected value of $m$ is given by
+\begin{equation}
+E(m)=\int_{\mathcal{M}} m p_{m \mid y}(m \mid y) \mathrm{d} m
+\end{equation}
+and is the estimate of $m$ that has the minimum variance. We could also calculate the expected value of the system state $f(t)$ at a time $t$ as
+\begin{equation}
+E(f(t))=\int_{\mathcal{M}} f(t, m) p_{m \mid y}(m \mid y) \mathrm{d} m .
+\end{equation}
+
+Note that these values require integration of a function times the posterior distribution. It is often difficult to obtain a closed form, analytic function for the posterior distribution. Monte Carlo integration uses samples $\left\{m_{i}\right\}$ drawn from the posterior distribution to approximate these integrals in a sum
+\begin{equation}
+E(a(m)) \approx \frac{1}{N} \sum_{i} a\left(m_{i}\right) .
+\end{equation}
+As the number of samples $N \rightarrow \infty$, the error in the approximation to the integral goes to zero. In the absence of a perfect, analytic posterior distribution, one can therefore make due with (potentially a lot of) samples drawn from the posterior distribution.
+
+There are many ways to sample a distribution (importance sampling, nested sampling, particle filtering, and more). Markov Chain Monte Carlo (MCMC) is a way to draw samples from a distribution when a user has a means of computing the likelihood function and prior distribution. It is supposed to be the go-to method for sampling high dimensional distributions. It draws the samples by constructing a Markov chain whose equilibrium distribution converges to the desired posterior probability distribution.
+
+\section{Markov chains}
+
+The goal of Markov Chain Monte Carlo is a) to design a Markov Chain whose equilibrium distribution is the desired posterior distribution $\pi_{x}(x)$, b) generate a random realization of the chain, and c) use the chain samples to calculate expectations via Monte Carlo integration.
+
+\subsection{Background}
+
+A Markov chain is a random sequence of points $x_{0}, x_{1}, \cdots \in \mathcal{X}$, where the probability distribution of the $n$th point $\pi_{x_{n} \mid x_{0}, x_{1}, \ldots, x_{n-1}}\left(x_{n} \mid x_{0}, x_{1}, \ldots, x_{n-1}\right)=\pi_{x_{n} \mid x_{n-1}}\left(x_{n} \mid x_{n-1}\right) \equiv \mathbb{T}\left(x_{n}, x_{n-1}\right)$. That is, the probability distribution of a the $n$th point in the sequence depends only on the previous point. Homogeneous Markov chains are such that the transition probability distribution $\mathbb{T}$ does not change with $n$ ("time"). A Markov chain is completely specified by an initial distribution $x_{0} \sim \alpha_{x_{0}}\left(x_{0}\right)$, and the transition distribution $\mathbb{T}\left(x_{n}, x_{n-1}\right)$.
+
+Example 1: A discretely sampled Wiener process (Brownian motion) is described by a Markov chain. $x \in \mathbb{R}$.
+\begin{equation}
+\mathbb{T}\left(x_{n}, x_{n-1}\right)=\exp \left(-\left(x_{n}-x_{n-1}\right) / 2 \sigma^{2}\right) / \sqrt{2 \pi \sigma}
+\end{equation}
+
+Typically one considers a known initial point $x_{*}$, in which case $\alpha_{x_{0}}\left(x_{0}\right)=\delta\left(x_{0}-x_{*}\right)$.
+
+Example 2: Sequence of independent coin flips as a Markov chain. $x \in\{H, T\}$. Initial measure is $\alpha_{x_{0}}\left(x_{0}\right)=1 / 2$ for $x=H$ and $1 / 2$ for $x=T$.
+\begin{equation}
+\mathbb{T}\left(x_{n}, x_{n-1}\right)=\left\{\begin{array}{l}
+	\frac{1}{2} \text { if } x_{n-1}=H \\
+	\frac{1}{2} \text { if } x_{n-1}=T
+\end{array}\right.
+\end{equation}
+
+Equipped with a means of sampling from $\mathbb{T}$, one draws a random sample $x_{0}$ from an initial distribution, then draw a new random sample $x_{1}$ by sampling $\mathbb{T}\left(x_{1}, x_{0}\right)$, then draw a new random sample $x_{2}$ by sampling $\mathbb{T}\left(x_{2}, x_{1}\right)$, and so on to generate a random sequence $x_{0}, x_{1}, \ldots, x_{N}$. Example 1 will generate a realization of the "drunkards walk" (the motion of a colloid in 1-d static medium). Example 2 will generate a realization of a sequence of coin tosses with an unbiased coin.
+
+\subsection{Equilibrium distribution}
+
+Under certain conditions, the samples of a Markov chain will be stationary meaning that each sample $x_{n}$ follows a distribution $\pi_{x_{n}}\left(x_{n}\right)$. Note that this distribution is different from the conditional probability $\pi_{x_{n} \mid x_{n-1}}\left(x_{n} \mid x_{n-1}\right)$. A sufficient condition for an irreducible Markov chain to have an equilibrium (or "invariant" or "stationary") distribution $\pi_{x}(x)$ if
+\begin{equation}
+\pi_{x}(x)=\int_{\mathcal{X}} \pi_{x}\left(x^{\prime}\right) \mathbb{T}\left(x, x^{\prime}\right) \mathrm{d} x^{\prime} .
+\end{equation}
+
+When the chain is "irreducible", the chain converges to this distribution irrespective of the initial distribution $\alpha$. The equilibrium distribution is the probability distribution of the $n$th sample in the chain if you do not have information on the previous sample. Another way to understand the relationship between the stationary distribution and the chain is that the normalized histogram of samples from the chain will converge to the probability distribution $\pi$. In general, the chain samples are correlated, so subsequent samples do not represent independent samples from the equilibrium distribution.
+
+Detailed balance is a stronger, sufficient condition for a chain to converge to a distribution $\pi$. It is as follows:
+\begin{equation}
+\mathbb{T}\left(x^{\prime}, x\right) \pi_{x}(x)=\mathbb{T}\left(x, x^{\prime}\right) \pi_{x}\left(x^{\prime}\right).
+\end{equation}
+
+Integrating both sides over $x^{\prime}$ and using the fact that $\mathbb{T}$ must be normalized
+\begin{equation}
+\pi(x) \int_{\mathcal{X}} \mathbb{T}\left(x^{\prime}, x\right) \mathrm{d} x^{\prime}=\pi(x)=\int_{\mathcal{X}} \mathbb{T}\left(x, x^{\prime}\right) \pi\left(x^{\prime}\right) \mathrm{d} x^{\prime}
+\end{equation}
+proves that its a sufficient condition for convergence to $\pi$.
+
+An equivalent statement of detailed balance, "integrated detailed balance", is that
+\begin{equation}
+\int_{\left(x, x^{\prime}\right) \in \mathcal{A} \times \mathcal{B}} \pi(x) \mathbb{T}\left(x^{\prime}, x\right) \mathrm{d} x \mathrm{~d} x^{\prime}=\int_{\left(x, x^{\prime}\right) \in \mathcal{A} \times \mathcal{B}} \pi\left(x^{\prime}\right) \mathbb{T}\left(x, x^{\prime}\right) \mathrm{d} x \mathrm{~d} x^{\prime}
+\end{equation}
+for all Borel sets $A, B \subset \mathcal{X}$. This is relevant for the Metropolis-Hastings-Green algorithm.
+
+\subsection{Metropolis-Hastings for detailed balance}
+
+To design a Markov chain that satisfies detailed balance for a given target distribution $\pi$, the Metropolis-Hastings algorithm constructs a transition probability $\mathbb{T}\left(x^{\prime}, x\right)$ in two steps.
+
+The first step draws a candidate next Markov chain sample $x^{\prime}$ using a convenient (i.e. easy to sample) proposal distribution $q\left(x^{\prime}, x_{n-1}\right)$. A common choice is a Gaussian with mean equal to $x_{n-1}$ and fixed variance.
+
+The second step is to randomly accept or reject the proposed step $x^{\prime}$ in such a way as to ensure detailed balance is assured. This will be done with an auxiliary distribution $\alpha\left(x^{\prime}, x_{n-1}\right)$ :
+\begin{equation}
+\alpha\left(x^{\prime}, x_{n-1}\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) q\left(x_{n-1}, x^{\prime}\right)}{\pi\left(x_{n-1}\right) q\left(x^{\prime}, x_{n-1}\right)}\right\} .
+\end{equation}
+
+The next step in the chain $x_{n}$ equals $x^{\prime}$ if accepted or $x_{n-1}$ if rejected.
+
+The transition probability of the associated chain $\mathbb{T}\left(x_{n} \mid x_{n-1}\right)$ is therefore the probability of proposing $x_{n}$ from $x_{n-1}$ and accepting it, or, if $x_{n}=x_{n-1}$, the probability of rejecting a proposed move (the complement of accepting any move):
+\begin{equation}
+\mathbb{T}\left(x_{n}, x_{n-1}\right)=q\left(x_{n}, x_{n-1}\right) \alpha\left(x_{n}, x_{n-1}\right)+\left(1-\int_{x^{\prime}} \alpha\left(x^{\prime}, x_{n-1}\right) q\left(x^{\prime}, x_{n-1}\right) \mathrm{d} x^{\prime}\right) \delta\left(x_{n}-x_{n-1}\right) .
+\end{equation}
+
+The first term above is the probability of proposing and accepting $x_{n}$, and the second term is the probability of a rejection. One can directly verify that detailed balance is satisfied by inserting the transition kernel (22) into the detailed balance equation (18).
+
+The class of Markov chains associated with the Metropolis-Hastings transition probability (regardless of their initial sample distribution) will converge to the equilibrium distribution $\pi$. Therefore, all that is required to draw samples from the distribution $\pi$ is the ability to sample from the proposal $q$, the ability to evaluate the $\pi$, and possibly infinite computation time.
+
+\subsection{Green's formulation}
+
+Green [1, 2] introduced the reversible jump Metropolis-Hastings algorithm, which is a proposalacceptance algorithm that allows one to sample across multiple models with potentially differing numbers of dimensions. It is also known as the Metropolis-Hastings-Green algorithm. I found that the derivations in the cited works were a bit challenging for me, as I have limited familiarity with measure theory and the Radon-Nikodyn theorem. I also found the notation to be opaque. I hope what follows is a more painstaking but ultimately more clear description of the description.
+
+The derivation relies on "integrated detailed balance" described above. A step in the chain is a jump from one point in $x \in \mathcal{X}$ to another (possibly equal) point $x^{\prime} \in \mathcal{X}$.
+
+The transition probability for the reversible jump Markov chain, as in Metropolis-Hastings, is constructed via a proposal followed by an accept-reject stage:
+\begin{equation}
+\mathbb{T}\left(x^{\prime}, x\right)=q\left(x^{\prime}, x\right) \alpha\left(x^{\prime}, x\right)+\left(1-\int_{z} q(z, x) \alpha(z, x)\right) \delta\left(x-x^{\prime}\right) .
+\end{equation}
+
+For this transition kernel, the integrated detailed balance equation (20) reads
+\begin{equation}
+\int_{\left(x, x^{\prime}\right) \in \mathcal{A} \times \mathcal{B}} \pi(x) q\left(x^{\prime}, x\right) \alpha\left(x^{\prime}, x\right) \mathrm{d} x \mathrm{~d} x^{\prime}=\int_{\left(x, x^{\prime}\right) \in \mathcal{A} \times \mathcal{B}} \pi\left(x^{\prime}\right) q\left(x, x^{\prime}\right) \alpha\left(x, x^{\prime}\right) \mathrm{d} x \mathrm{~d} x^{\prime} .
+\end{equation}
+
+Note here that we need note include the rejection, since it contributes the same value to each side (an integral over $A \cap B$ with equal integrand).
+
+Green provides a "constructive representation" of the trans-dimensional sampler that moves the "randomness" part of proposals to an auxiliary random variable, and then considers a deterministic function of the value of the random variable and the current state (this will become more clear shortly). In Metropolis-Hastings, we put the "randomness" in the proposal distribution $q\left(x^{\prime}, x\right)$ which is parameterized by the state $x$. In reversible jump, we place the randomness in a random variable $u$ with distribution $g(u)$, and propose a new state deterministically as $\left(x^{\prime}, u^{\prime}\right)=h(x, u)=$ $\left(h_{1}(x, u), h_{2}(x, u)\right.$. With this scheme in place, consider the probability of proposing a jump from $x$ to $x^{\prime}: q\left(x^{\prime}, x\right)$ is now specified by the probability distribution $g(u)$ (for the specific $u$ required to move from $x$ to $x^{\prime}$ ). We will introduce the notation $\mathcal{U}$ to refer to the set that is mapped to the set $\mathcal{B}$ under the transformation $h_{1}$. Implicit in this is a dependence on $x$, which is suppressed in the notation. This allows one to move the integral over $x^{\prime} \in \mathcal{B}$ in the left hand side of equation (24) to an integral over $u \in \mathcal{U}$ :
+\begin{equation}
+\int_{\left(x, x^{\prime}\right) \in \mathcal{A} \times \mathcal{B}} \pi(x) q\left(x^{\prime}, x\right) \alpha\left(x^{\prime}, x\right) \mathrm{d} x \mathrm{~d} x^{\prime}=\int_{(x, u \in \mathcal{A} \times \mathcal{U}} \pi(x) g(u) \alpha\left(x^{\prime}(x, u), x\right) \mathrm{d} x \mathrm{~d} u .
+\end{equation}
+If we assume that the mapping from $x, u \rightarrow\left(x^{\prime}, u^{\prime}\right)$ is a diffeomorphism, then I can perform the integral on the right hand side of equation (24) over $x, u$ as well! However, we need to use the change-of-variables formula to preserve volume in the integral: changing from $\mathrm{d} x^{\prime} \mathrm{d} u^{\prime}$ to $\mathrm{d} x \mathrm{~d} u$, we need to include the determinant of the Jacobian transformation
+\begin{equation}
+\left|J_{h}\right|=\left|\frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right|=\left|\left[\begin{array}{ll}
+	\frac{\partial h_{1}}{\partial x} & \frac{\partial h_{1}}{\partial x} \\
+	\frac{\partial h_{2}}{\partial x} & \frac{\partial h_{2}}{\partial u}
+\end{array}\right]\right|
+\end{equation}
+
+Then, the integrated detailed balance equation becomes
+\begin{equation}
+\int_{(x, u) \in \mathcal{A} \times \mathcal{U}} \pi(x) g(u) \alpha\left(x^{\prime}(x, u), x\right) \mathrm{d} x \mathrm{~d} u=\int_{(x, u) \in \mathcal{A} \times \mathcal{U}} \pi\left(x^{\prime}(x, u)\right) g^{\prime}\left(u^{\prime}(x, u)\right) \alpha\left(x^{\prime}(x, u), x\right)\left|\frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right| \mathrm{d} x \mathrm{~d} u .
+\end{equation}
+
+Finally, then, we get that to satisfy detailed balance, it suffices to satisfy
+\begin{equation}
+\pi(x) g(u) \alpha\left(x^{\prime}(x, u), x\right)=\pi\left(x^{\prime}(x, u)\right) g^{\prime}\left(u^{\prime}(x, u)\right) \alpha\left(x, x^{\prime}(x, u)\right)\left|\frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right|
+\end{equation}
+
+If we choose
+\begin{equation}
+\alpha\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g^{\prime}\left(u^{\prime}\right)}{\pi(x) g(u)} \mid \frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right\}
+\end{equation}
+then we will satisfy detailed balance.
+
+Finally, in what follows, there will be a menu of "moves" that the chain can make. Each move comes with proposal distributions characterized by $g(u)$ and $g^{\prime}\left(u^{\prime}\right)$, as well as a diffeomorphism $x^{\prime}(x, u), u^{\prime}(x, u)$. The specific move will be identified with an index $m$ and selected randomly according to some distribution $j_{m}(x)$ that may depend on the state $x$. Given that move $m$ is attempted, the acceptance probability becomes
+\begin{equation}
+\boxed{\alpha_{m}\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g_{m}^{\prime}\left(u^{\prime}\right) j_{m}\left(x^{\prime}\right)}{\pi(x) g_{m}(u) j_{m}(x)}\left|\frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right|\right\}} .
+\end{equation}
+
+The dependence of the Jacobian on the move type is suppressed for notational convenience.
+
+\section{Metropolis-Hastings sampling for polynomial problem}
+
+We will first implement Metropolis-Hastings sampling for the polynomial problem when we know the number of polynomial coefficients. The number of coefficients is set to 5 . The number of samples $N=100$. The time grid is uniformly spaced from $t=-1$ to $t=1$. Data is generated by randomly first selecting a realization of the polynomial coefficients $m_{\text {true }}$ and using these to generate the state values $y_{\text {true }}=H m_{\text {true }}$. Then, noise is randomly generated according to the distribution under consideration and is added to the measurements to get $y=y_{\text {true }}+n$.
+
+\subsection{Simulation with Gaussian prior and Gaussian noise}
+
+Here we have a Gaussian prior distribution on the coefficients and a Gaussian distribution for the noise. Let's assume an equal variance for the coefficients $\sigma_{0}^{2}$ and a (different) equal variance for the noise $\sigma_{n}^{2}$. Let's also assume both distributions are zero-mean. Then, the likelihood distribution is Gaussian
+\begin{equation}
+\mathcal{L}(m)=p(y \mid m)=\exp \left(-\frac{\|y-H m\|^{2}}{2 \sigma_{n}^{2}}\right) /\left(2 \pi \sigma_{n}\right)^{N / 2} .
+\end{equation}
+The posterior distribution is also Gaussian (see section 3.4), with a mean and covariance that can be calculated from $H, y, \sigma_{0}^{2}$ and $\sigma_{n}^{2}$. The problem is therefore to sample this multivariate Gaussian. Since we can actually compute the posterior mean and covariance, this will be a good example to check our sampler.
+
+The Metropolis-Hastings algorithm requires only a proposal distribution to be selected (and will work regardless of the distribution chosen). Here we will use a spherical Gaussian proposal distribution centered at the previous sample with variance $\sigma^{2}: q\left(x^{\prime}, x\right) \sim \mathcal{N}\left(x, \sigma^{2}\right)$. The variance of the proposal Gaussian is tuned to obtain a reasonable acceptance ratio (see Gelman, Roberts and Gilks 1997 [3]). I ultimately settled on a proposal variance of $\sigma^{2}=(.02)^{2}$. Note that the acceptance ratio doesn't affect the asymptotic behavior of the chain. However, we can't just wait for infinity to come around, so it has a practical effect. The integrated autocorrelation time is the relevant statistic for considering the independence of chain samples (see the well-known Sokal notes from 1996, which can be found online). The initial distribution $\alpha_{0}(x)$ also doesn't affect the equilibrium distribution. Here we will just draw a sample from the prior distribution to start the chain.
+
+I run the chain for 100000 steps. I discard the first 10000.
+
+The results of this simulation are shown in Figure 1.
+
+\subsection{Simulation with Gaussian prior and exponential noise}
+
+Now we consider that the noise is independent Laplacian distributed with mean 0 and scale parameter $b: p_{n_{i}}\left(n_{i}\right)=\frac{1}{2 b} \exp \left(-\left|n_{i}\right| / b\right)$. The log-likelihood distribution in this case is
+\begin{equation}
+\log \mathcal{L}(m)=p(y \mid m)=-\sum_{i=0}^{N-1} \frac{\left|y_{i}-(H m)_{i}\right|}{b}-N \log (2 b)
+\end{equation}
+
+I fix $b=1$. I use a Gaussian proposal once again, though this time it has a proposal variance of $\sigma^{2}=(.05)^{2}$. I run the chain for 100000 steps. I discard the first 10000. I also use the standard deviation of the noise to get the approximate Gaussian noise distribution. I can use this to compare the results from linear inverse theory using the incorrect assumption of Gaussianity of the noise. The results are shown in Figure 2.
+
+%\section{Gaussian polynomial regression MH simulation}
+%![](https://cdn.mathpix.com/cropped/2023_11_21_728d9246862091dc5977g-10.jpg?height=492&width=1390&top_left_y=336&top_left_x=346)
+
+%Accept. ratio
+%![](https://cdn.mathpix.com/cropped/2023_11_21_728d9246862091dc5977g-10.jpg?height=1306&width=1376&top_left_y=890&top_left_x=359)
+\begin{figure}
+	\centering 
+	
+	\textbf{Gaussian polynomial regression MH simulation}
+	
+	\includegraphics[width=.45\textwidth]{{pics/poly_gaussian_regression_data}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/poly_estimation}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/poly_acceptance_ratio}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/poly_log_probs}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/poly_covariances}.pdf}	
+	\caption{Metropolis-Hastings sampling results. From left to right, top to bottom we have: 1. True polynomial values in black, measured values in blue. 2. True polynomial coefficients, posterior mean using linear inverse theory, and sample mean from MCMC run (with 2 sigma error bars). 3. Acceptance ratio vs. iteration. 4. Log probability of chain as function of sample number. 5. Comparison of the sample covariance matrix and the posterior covariance matrix from linear inverse theory.}
+\end{figure}
+
+\begin{figure}
+	\centering 
+	
+	\textbf{Laplacian	 polynomial regression MH simulation}
+	
+	\includegraphics[width=.45\textwidth]{{pics/laplac_poly_regression_estimation}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/laplac_poly_estimation}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/laplac_poly_acceptance_ratio}.pdf}
+	\includegraphics[width=.45\textwidth]{{pics/laplac_poly_log_probs}.pdf}
+	\caption{Metropolis-Hastings sampling results. From left to right, top to bottom we have: 1. True polynomial values in black, measured values in blue. 2. True polynomial coefficients, posterior mean using linear inverse theory, and sample mean from MCMC run (with 2 sigma error bars). 3. Acceptance ratio vs. iteration. 4. Log probability of chain as function of sample number. Note that in the top right figure, the red crosses denote the linear inverse best guess under the false assumption of Gaussian noise. The green cross is the minimum variance estimate from the posterior samples from Metropolis-Hastings and is closer to the true values (black dots).}
+\end{figure}
+%Figure 2: 
+
+\section{Practical concerns of MCMC: adaptive proposal covariance matrix and parallel tempering}
+
+In the previous section I showed a simply Metropolis-Hastings MCMC solution to the polynomial problem. Theoretically, M-H theoretically guarantees that the chain will asymptotically approximate the posterior distribution. Practically, however, I would like the chain to not take forever. A "good" chain therefore is one that produces the most "independent" samples in the shortest amount of time.
+
+I will offer two practical tricks to getting a good chain: adaptive proposal [4] and parallel tempering (see Miasojedow 2013 for a nice discussion [5]).
+
+\subsection{Adaptive proposal distribution}
+
+In order to draw samples from a Gaussian distribution using MCMC, the optimal proposal distribution is a scaled version of the desired Gaussian's covariance matrix (Need to check this result). That is, if the Gaussian to sample has covariance matrix $\Sigma$, then the optimal proposal distribution is $s_{D} \Sigma$. Here, optimal means that the chain produces the most effectively independent samples per step. Gelman, Gilks, and Roberts (1997) [3] that contains a derivation of the asymptotic (in the dimension of the Gaussian) optimality for a chain sampling a Gaussian. In particular, the chain should have an acceptance ration of 0.23 , and $s_{d}=(2.38)^{2} / \mathrm{dim}$.
+
+When we sample a posterior distribution, we rarely know the posterior covariance at the outset (or even if the distribution is Gaussian). However, as our chain explores the space, it is converging to the true distribution. Therefore, after a while, we can use our chain samples themselves to estimate the posterior covariance, and then use this is our proposal. Continually updating the proposal covariance using the chain samples is called adaptive Metropolis-Hastings [4]. It breaks homogeneity of the chain. However, asymptotically the sample covariance matrix of the samples converges, so the chain becomes asymptotically homogeneous.
+
+I'm not a statistician, so these considerations are above my paygrade. I use a simple heuristic in designing my chain. First, I take a simple uncorrelated Gaussian prior $\Sigma_{0}=\operatorname{diag}\left(\sigma_{1}^{2}, \sigma_{2}^{2}, \ldots\right)$ on my parameters. Then, I choose as my proposal distribution $g\left(x^{\prime}, x_{n-1}\right) \sim \mathcal{N}\left(x_{n-1}, \gamma \Sigma_{0}\right.$. For a given value of $\gamma$, I can run the chain for a while and compute the acceptance ratio. I then try and find the value $\gamma_{*}$ that minimizes the absolute difference between the acceptance ratio and 0.23 . I'm not very precise here. Anywhere between 0.1 and 0.5 is fine by me.
+
+Now, I run my chain say $N$ samples with my proposal as $g\left(x^{\prime}, x_{n-1}\right) \sim \mathcal{N}\left(x_{n-1}, \gamma_{*} \Sigma_{0}\right.$. I use these $N$ samples to estimate the sample covariance matrix
+\begin{equation}
+\hat{\Sigma}=\frac{1}{N-1} \sum_{i=1}^{N}\left(x_{i}-\hat{x}\right)
+\end{equation}
+Finally, I use as my proposal covariance matrix $s_{D} \hat{\Sigma}$, where $s_{d}=(2.38)^{2} / \mathrm{dim}$.
+
+This seems to work well, at least in lower dimensions. It also avoids the question of nonhomogeneity.
+
+\subsection{Parallel tempering}
+
+For a multimodal distribution, chains will often spend a lot of time in a single mode. Again, they will \emph{asymptotically} make their way to all of the modes and sample all of them well. Practically I would like them to do that today. The go-to trick to deal with this issue is parallel tempering. See Sambridge (2013) [6] for a nice comprehensive presentation.
+
+Basically one considers sampling a "tempered" version of the distribution. Suppose we want to sample multimodal distribution $\pi(x)$. Then, we also run chains that sample distributions $\pi_{T}(x)=$ $\pi^{1 / T}(x)$. Here $T \geq 1$ is the temperature. The effect of the power $1 / T$ is nicely demonstrated on a Gaussian. If $\pi(x)$ is Gaussian with variance $\sigma^{2}$, then $\pi_{T}(x)=\pi^{1 / T}(x)$ is Gaussian with variance $T \sigma^{2}$. Therefore, the effect of raising the temperature is to flatten out the peaks in a distribution.
+
+The parallel part comes in to play by basically running, in parallel, chains at different temperature. Then, swaps are proposed between chains of different temperatures and accepted with a probability that maintains detailed balance (see Sambridge [6] for detailed details).
+
+The cold chain therefore will tend to hang out in a single mode sampling around. The hotter chains spend more time visiting different modes. Occasionally the hot chains will swap with the cold chain, leaving it in a new mode that it then explores.
+
+It is important for trans-dimensional sampling with birth-death moves. When you propose a new birth move, you need to draw a random value for the new dimension variable. Since the chain is typically found in high-likelihood regions, it's unlikely that the random new initial value will be likely enough for acceptance. Therefore you have trouble getting good acceptance ratios for birth and death moves. You run a hot chain that is more likely to accept birth-death moves, and therefore sample across models. The cold chain then explores each model.
+
+\section{Trans-dimensional sampling for the polynomial problem}
+
+Suppose that the order of the polynomial $k$ is in fact unknown. Rather we have some prior knowledge on the order, given as a probability distribution $p(k)$. This gives us a set of possible models for the data, which we can index by the polynomial order $k$. We will denote a model state vector for the $k$ th model as $m_{k}$. We would ultimately like to obtain a posterior distribution on the models, as well as the model state, which is connected to the measurement by Bayes' rule
+\begin{equation}
+p_{m_{k}, k \mid y}\left(m_{k}, k \mid y\right)=\frac{p_{y \mid m_{k}, k}\left(y \mid m_{k}, k\right) p_{m_{k}, k}\left(m_{k}, k\right)}{p_{y}(y)} .
+\end{equation}
+The normalization in the denominator has to sum over model indices $k$ and integrate over states
+\begin{equation}
+p_{y}(y)=\sum_{k^{\prime}} \int_{M_{k^{\prime}}} p\left(y \mid m_{k^{\prime}}, k^{\prime}\right)
+. \end{equation}
+
+We can identify the probability distribution $p_{y \mid m_{k}, k}\left(y \mid m_{k}, k\right)$ as being proportional to the likelihood function $\mathcal{L}\left(m_{k}, k\right)$ which now also depends on the model order $k . p_{m_{k}, k}\left(m_{k}, k\right)$ is the prior on $m_{k}, k$.
+
+\subsection{Polynomial problem}
+
+For the polynomial problem, the coefficients for a degree $k$ polynomial live in $R^{k+1}$. Suppose the considered polynomial degrees are specified in the countable set $\mathcal{K}$. The possible states live in $\mathcal{X}=\cup_{k \in \mathcal{K}}\left(\{k\} \times R^{k+1}\right)$. By appending the degree to the state we can always identify the degree. Our notation above used
+\begin{equation}
+m=m_{0}, m_{1}, \ldots, m_{l}
+. \end{equation}
+
+To identify order, we will use a subscript:
+
+\begin{equation}
+m_{k}=k, m_{0}, m_{1}, \ldots, m_{k}
+. \end{equation}
+
+\section{Reverse jump MCMC for polynomial regression}
+%![](https://cdn.mathpix.com/cropped/2023_11_21_728d9246862091dc5977g-14.jpg?height=480&width=1392&top_left_y=343&top_left_x=346)
+%
+%Figure 3: Left: Posterior mean curve from trans-dimensional sampling. Right: Histogram of sample dimension (polynomial degree plus one). Note that most of the samples are at the correct model dimension of five (polynomial degree four).
+
+\begin{figure}
+	\includegraphics[width=0.45\textwidth]{{pics/trans_d_poly_regression_data}.pdf}
+\includegraphics[width=0.45\textwidth]{{pics/trans_d_poly_dim_hist}.pdf}
+\caption{ Left: Posterior mean curve from trans-dimensional sampling. Right: Histogram of sample dimension (polynomial degree plus one). Note that most of the samples are at the correct model dimension of five (polynomial degree four). Comparison with analytic form of evidence shows good agreement. }
+\end{figure}
+
+\subsection{Sampler moves}
+
+We need to define the moves (proposal steps) that our chain will perform.
+
+The first is a perturb move, which maintains the order fixed and simply perturbs the state with proposal $g$. The diffeomorphism is simply $x^{\prime}, u^{\prime}=x, u$ so its Jacobian determinant is one. Here the acceptance distribution is
+\begin{equation}
+\alpha_{b i r t h}\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g\left(u^{\prime}\right) j_{\text {pert }}\left(x^{\prime}\right)}{\pi(x) g(u) j_{\text {pert }}(x)}\right\}
+. \end{equation}
+
+Assuming that the probability of performing a perturb move is independent of position, then the $j$ terms will cancel.
+
+The second is a birth-death move, which in one direction moves to one order higher than the current state order and in the reverse direction moves to one order lower. Suppose the current state is $k$. The $k$ state parameters are still meaningful when we jump up to the next order, so it makes sense for our birth diffeomorphism $h$ to preserve those values. We can simply generate a single number $u$ according to a distribution $g(u)$ and use that for the value of the new parameter $m_{k+1}$. The reverse move would just assign the value of $m_{k+1}$ to the value of $0$ with probability 1. The reverse move is referred to as a death move. Due to the simple mapping used, the Jacobian of $h$ is just the identity matrix, so it has determinant 1. Explicitly, we have that the birth move is $ m_k = k, m_0, \dots, m_{k} \to m_{k+1}' = (k+1), m_0, \dots, m_k, u$ and the reverse move is $ m_{k+1} = k+1, m_0, \dots, m_{k+1} \to m_k' = k, m_0, \dots, m_k$. 
+ The acceptance distribution for the birth move is therefore
+\begin{equation}
+\alpha_{\text {birth }}\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right)(1) j_{\text {death }}\left(x^{\prime}\right)}{\pi(x) g_{b i r t h}(u) j_{\text {birth }}(x)}\right\}
+. \end{equation}
+
+We see here that strictly trans-dimensional moves come in pairs, since the reverse move is necessarily trans-dimensional. The acceptance distribution for the reverse move is
+\begin{equation}
+\alpha_{\text {death }}\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g_{\text {birth }}(u) j_{\text {birth }}\left(x^{\prime}\right)}{\pi(x)(1) j_{\text {death }}(x)}\right\}
+\end{equation}
+
+
+
+
+\end{document}
+
+
+%
+%\section*{References}
+%
+%[1] P. J. Green, "Reversible jump markov chain monte carlo computation and bayesian model determination," Biometrika, vol. 82, no. 4, pp. 711-732, 1995.
+%
+%[2] P. J. Green and D. I. Hastie, "Reversible jump mcmc," Genetics, vol. 155, no. 3, pp. 1391-1403, 2009.
+%
+%[3] A. Gelman, W. R. Gilks, and G. O. Roberts, "Weak convergence and optimal scaling of random walk metropolis algorithms," The annals of applied probability, vol. 7, no. 1, pp. 110-120, 1997.
+%
+%[4] H. Haario, E. Saksman, and J. Tamminen, "An adaptive metropolis algorithm," Bernoulli, pp. 223-242, 2001.
+%
+%[5] B. Miasojedow, E. Moulines, and M. Vihola, "An adaptive parallel tempering algorithm," Journal of Computational and Graphical Statistics, vol. 22, no. 3, pp. 649-664, 2013.
+%
+%[6] M. Sambridge, "A parallel tempering algorithm for probabilistic sampling and multimodal optimization," Geophysical Journal International, vol. 196, no. 1, pp. 357-374, 2014.

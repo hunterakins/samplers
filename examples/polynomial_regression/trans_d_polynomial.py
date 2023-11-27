@@ -16,22 +16,11 @@ import matplotlib
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 matplotlib.rcParams['font.family'] = 'STIXGeneral'
 from samplers.likelihoods import GaussianLikelihood, MultimodalGaussianLikelihood, RosenbrockTwoD
-from samplers.rjpt import AdaptiveTransDPTSampler, Chain, ChainParams,mh_walk
+from samplers.rjpt import AdaptiveTransDPTSampler, Chain, ChainParams, mh_walk
 from samplers.helpers import *
+from samplers.examples.polynomial_regression.gaussian_regression import get_evidence, get_post_mean_cov, get_H
 
 pics_folder = '/home/hunter/research/samplers/notes/pics/'
-
-def generate_polynomial_samples(tgrid, coeffs):
-    """
-    Generate samples from a polynomial
-    """
-    return np.polyval(coeffs, tgrid)
-
-def generate_polynomial_samples_with_noise(tgrid, coeffs, noise_std):
-    """
-    Generate samples from a polynomial
-    """
-    return np.polyval(coeffs, tgrid) + np.random.normal(0, noise_std, len(tgrid))
 
 def f_log_prior(x):
     """
@@ -39,14 +28,16 @@ def f_log_prior(x):
     Assume regardless it is a zero mean unit variance Gaussian?
     """
     dim = int(x[0])
+    sigma_sq = 1.0
     xvals = x[1:dim+1]
-    log_prior = -dim*np.log(2*np.pi)/2 - np.sum(xvals**2)/2
+    log_prior = -float(dim)*np.log(2*np.pi*sigma_sq)/2 - np.sum(xvals**2)/(2*sigma_sq)
     return log_prior
 
-def get_log_lh(y, tgrid, noise_std):
+def get_log_lh(y, tgrid, noise_std, beta=1.0):
     """
     Fix msmts y
     """
+    n = tgrid.size
     def f_log_lh(x):
 
         """
@@ -55,7 +46,7 @@ def get_log_lh(y, tgrid, noise_std):
         dim = int(x[0])
         xvals = x[1:dim+1]
         y_pred = np.polyval(xvals, tgrid)
-        log_lh = -dim*np.log(2*np.pi*noise_std**2)/2 - np.sum((y-y_pred)**2)/(2*noise_std**2)
+        log_lh = -n/2*np.log(2*np.pi*noise_std**2 / beta) - beta*np.sum((y-y_pred)**2)/(2*noise_std**2)
         return log_lh
     return f_log_lh
 
@@ -67,7 +58,7 @@ def f_proposal(prop_cov):
     if prop_cov.size > 1:
         val =  np.random.multivariate_normal(np.zeros(prop_cov.shape[0]), prop_cov)
         return val, None
-    else:
+    else: # dim is 1
         val = np.random.randn()*np.sqrt(prop_cov)
         log_prob = -np.log(2*np.pi*prop_cov)/2 - val**2/(2*prop_cov)
         return val, log_prob
@@ -91,49 +82,57 @@ def f_prior(dim):
     cov = np.eye(dim)
     return f_proposal(cov)[0]
 
-def compute_evidence(dim_grid, f_log_lh, N_chain, beta):
-    #f_log_lh = get_log_lh(y, tgrid, noise_std) # set log lh fun
-    N_tune = 100
-    variance_range = np.logspace(-3, 0, 4)
-    evidence_grid = np.zeros((dim_grid.size))
-    for dim_i, dim in enumerate(dim_grid):
-        x = np.zeros(dim+1)
-        x[0] = dim
-        x[1:] = np.random.randn(dim)
-        print('dim', dim, 'log lh', f_log_lh(x))
+#def compute_evidence(dim_grid, f_log_lh, n_chain, beta):
+#    N_tune = 1000
+#    variance_range = np.logspace(-3, 0, 4)
+#    evidence_grid = np.zeros((dim_grid.size))
+#    for dim_i, dim in enumerate(dim_grid):
+#        x = np.zeros(dim+1)
+#        x[0] = dim
+#        x[1:] = np.random.randn(dim)
+#
+#        sd = 2.4 ** 2 / dim # scaling of variance in Gelman Roberts Gilks 1996
+#
+#        opt_acc = get_opt_acc(dim)
+#        ratios = np.zeros((variance_range.size))
+#        best_x_list = []
+#
+#        for var_i, var in enumerate(variance_range): # now generate 100 samples for each variance
+#            prop_cov = np.eye(dim)*var
+#            x_samples, acc_ratios, log_p = mh_walk(x, N_tune, f_proposal, prop_cov*sd, f_log_prior, f_log_lh, beta)
+#            best_x = x_samples[:, np.argmax(log_p)]
+#            best_x_list.append(best_x)
+#            final_acc_ratio = acc_ratios[-1]
+#            ratios[var_i] = final_acc_ratio
+#            #plt.plot(acc_ratios)
+#        best_i = np.argmin(np.abs(ratios - opt_acc))
+#        best_x = best_x_list[best_i]
+#        #plt.plot(np.log10(variance_range), ratios, label='dim: {}'.format(dim))
+#
+#        """
+#        Now run a chain of length ... to get a number of samples to use for proposal covariance
+#        """
+#        prop_cov = np.eye(dim)*variance_range[best_i] # use best scaling for SCM estimation
+#        x_samples, acc_ratios, log_post = mh_walk(best_x, N_chain, f_proposal, prop_cov*sd, f_log_prior, f_log_lh, beta)
+#        print('dim, evidence calculation acc ratio for dim', dim, acc_ratios[-1])
+#        evidence = np.sum(np.exp(log_post))
+#        evidence_grid[dim_i] = evidence
+#    return evidence_grid
 
-        sd = 2.4 ** 2 / dim # scaling of variance in Gelman Roberts Gilks 1996
-
-        opt_acc = get_opt_acc(dim)
-        ratios = np.zeros((variance_range.size))
-        best_x_list = []
-
-        for var_i, var in enumerate(variance_range): # now generate 100 samples for each variance
-            prop_cov = np.eye(dim)*var
-            x_samples, acc_ratios, log_p = mh_walk(x, N_tune, f_proposal, prop_cov*sd, f_log_prior, f_log_lh, beta)
-            best_x = x_samples[:, np.argmax(log_p)]
-            best_x_list.append(best_x)
-            final_acc_ratio = acc_ratios[-1]
-            ratios[var_i] = final_acc_ratio
-            #plt.plot(acc_ratios)
-        best_i = np.argmin(np.abs(ratios - opt_acc))
-        best_x = best_x_list[best_i]
-        print('dim', dim)
-        print('best var', variance_range[best_i])
-        print('best ratio', ratios[best_i])
-        #plt.plot(np.log10(variance_range), ratios, label='dim: {}'.format(dim))
-
-        """
-        Now run a chain of length ... to get a number of samples to use for proposal covariance
-        """
-        prop_cov = np.eye(dim)*variance_range[best_i] # use best scaling for SCM estimation
-        x_samples, acc_ratios, log_post = mh_walk(best_x, N_chain, f_proposal, prop_cov*sd, f_log_prior, f_log_lh, beta)
-        print('print prop cov tune acc ratio', acc_ratios[-1])
-        evidence = np.sum(np.exp(log_post))
-        evidence_grid[dim_i] = evidence
-    return evidence_grid
-
-
+def compute_evidence(dim_grid, tgrid, y_meas, noise_std, beta):
+    """
+    Prior sigma is 1
+    noise_sigma = noise_std / sqrt(beta)
+    """
+    prior_sigma = 1.0
+    noise_sigma = noise_std / np.sqrt(beta)
+    evidence_list = []
+    for dim in dim_grid:
+        H = get_H(tgrid, dim)
+        x_mean, x_cov = get_post_mean_cov(H, y_meas, noise_sigma, prior_sigma)
+        evidence = get_evidence(H, y_meas, noise_sigma, prior_sigma)
+        evidence_list.append(evidence[0,0])
+    return evidence_list
 def example_comparison_script():
     """
     Do a transdimensional regression on the polynomial from the other examples 
@@ -142,10 +141,10 @@ def example_comparison_script():
     """
     First generate some data and introduce some noise
     """
-    snr_db = 10
+    snr_db = 20
     #np.random.seed(1)
     N = 30
-    tgrid = np.linspace(-1, 1, N)
+    tgrid = np.linspace(-1, 2, N)
     coeffs = np.load('m_true.npy')
     print('coeffs', coeffs)
     print('true dim', coeffs.size)
@@ -186,19 +185,27 @@ def example_comparison_script():
     Tune the proposal scale factor sd_arr
     """
     #dim_list = [2,3,4,5,6,7,8,9] # dimensions to try...
-    dim_list = [3,4,5,6,7,8]
-    beta = 1/100
-    evidence_grid = compute_evidence(np.array(dim_list), f_log_lh, 500, beta)
+    dim_list = [2,3,4,5,6,7]
+    beta = 1/10000
+    f_log_lh = get_log_lh(y, tgrid, noise_std, beta=beta) # set log lh fun
+    #evidence_grid = compute_evidence(np.array(dim_list), f_log_lh, 10000, 1.0)
+    evidence_grid = compute_evidence(dim_list, tgrid, y, noise_std, beta)
     plt.figure()
-    plt.plot(dim_list, evidence_grid, label=f'beta={beta}')
+    plt.plot(dim_list, evidence_grid, 'k', label=f'beta={beta}')
+    plt.grid()
     plt.legend()
     beta = 1.0
-    evidence_grid = compute_evidence(np.array(dim_list), f_log_lh, 5000, beta)
+    f_log_lh = get_log_lh(y, tgrid, noise_std, beta=beta) # set log lh fun
+    #evidence_grid = compute_evidence(np.array(dim_list), f_log_lh, 10000, 1.0)
+    evidence_grid = compute_evidence(dim_list, tgrid, y, noise_std, beta)
     plt.figure()
-    plt.plot(dim_list, evidence_grid, label=f'beta={beta}')
+    plt.plot(dim_list, evidence_grid, 'k', label=f'beta={beta}')
+    plt.grid()
     plt.legend()
 
+
     move_probs = [[1.0, 0.0]] + [[0.5, 0.5]]*(len(dim_list)-2) + [[0.0, 1.0]]
+    print('move probs', move_probs)
     num_chains = 10
     Tmax = 100
     temp_ladder = np.exp(np.linspace(0, np.log(Tmax), num_chains))
@@ -211,18 +218,18 @@ def example_comparison_script():
     N_samples = int(20*1e3)
     nu = N_samples # this means no adaptive update
     N_burn_in = 1000
-    swap_interval = 1 # propose chain swaps every step
-    sd_arr = 2.4**2 / np.array(dim_list)
-    prop_cov_arr = 2*noise_std**2 / beta_arr
-
-    sigma_scale = 0.1
-    prop_cov_arr *= sigma_scale
+    swap_interval = 10 # propose chain swaps every step
 
     """ 
     Now run 
     """
     sampler.initialize_chains(N_samples, N_burn_in, nu, f_prior, update_after_burn, swap_interval, prop_covs)
     sampler.sample()
+
+    plt.figure()
+    plt.plot(sampler.death_log_p_ratio, label='death log alpha')
+    plt.plot(sampler.birth_log_p_ratio, label='birth log alpha')
+    plt.legend()
     cold_samples, log_probs, _, _, _ = sampler.get_chain_info(0) # get cold chain
     map_x = cold_samples[:, np.argmax(log_probs)]
     dim = int(map_x[0])
@@ -251,6 +258,7 @@ def example_comparison_script():
     log_p_ar_fig.savefig(pics_folder + 'trans_d_poly_log_p_ar.pdf')
 
     log_p_ar_fig, fig_ax_list, dim_fig = sampler.single_chain_diagnostic_plot(-1)
+    
 
     dim_fig.savefig(pics_folder + 'trans_d_poly_dim_hist_hot_chain.pdf')
 

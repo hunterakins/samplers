@@ -89,19 +89,58 @@ def get_post_mean_cov(H, y_meas, noise_sigma, prior_sigma):
     x_mean = Kgain@y_meas
     return x_mean, x_cov
 
+
+def get_evidence(H, y_meas, noise_sigma, prior_sigma):
+    """
+    Description:
+        Returns the posterior mean and covariance for the linear model vector
+        x, which is related to the measurements y_meas by
+        y_meas = H @ x + noise
+        Noise is zero-mean gaussian with covariance matrix noise_sigma**2 * I
+        The prior on x is zero-mean Gaussian with covariance matrix prior_sigma**2 * I
+    Args:
+        H: numpy array, linear model matrix
+        y_meas: numpy array, measurements
+        noise_sigma: float, standard deviation of noise
+        prior_sigma: float, standard deviation of prior
+    Returns:
+        x_mean: numpy array, posterior mean of x
+        x_cov: numpy array, posterior covariance of x
+    """
+    n = y_meas.size
+    xdim = H.shape[1]
+    x_mean, x_cov = get_post_mean_cov(H, y_meas, noise_sigma, prior_sigma)
+    prior_cov = prior_sigma**2 * np.eye(xdim)
+    noise_cov = noise_sigma**2 * np.eye(len(y_meas))
+    noise_cov_inv = np.linalg.inv(noise_cov)
+
+    term1 = y_meas[:, None].T @ noise_cov_inv @ y_meas[:, None]
+    term2 = x_mean[:,None].T @ np.linalg.inv(x_cov) @ x_mean[:,None]  
+    term3 = np.sqrt(np.linalg.det(x_cov))
+    term4 = np.sqrt(np.linalg.det(prior_cov))
+    term5 = np.sqrt(np.linalg.det(noise_cov))
+    term6 = np.sqrt((2*np.pi)**n)
+    evidence = np.exp(-.5*(term1 - term2)) * (term3/term4) /(term5*term6)
+    return evidence
+
 def run_simulation():
     poly_dim = 5
-    N = 100
-    tgrid = np.linspace(-1.0, 1.0, N)
+    N = 30
+    tgrid = np.linspace(-1.0, 2.0, N)
 
     poly_mean = np.zeros(poly_dim)
     poly_sigma = 1.0
-    noise_sigma = 0.1
+    snr_db = 20
     prop_sigma = 1.0
 
     #m_true = np.random.randn(poly_dim) * poly_sigma
     m_true = np.load('m_true.npy')
     y_true = np.polyval(m_true, tgrid)
+
+    noise_var = (np.var(y_true)/(10**(snr_db/10)))
+    noise_sigma = np.sqrt(noise_var)
+    y = np.copy(y_true)
+    y += noise_sigma*np.random.randn(tgrid.size)
     y_meas = y_true + np.random.randn(len(tgrid)) * noise_sigma
 
 
@@ -120,8 +159,7 @@ def run_simulation():
         plt.suptitle('sd = ' + str(sd))
         plt.plot(acceptance_ratios)
 
-
-    sd = 2 * 1e-2 # based on the plots above...
+    sd = 1 * 1e-1 # based on the plots above...
     N= int(1e5)
     N_burn = 1e4
     f_proposal = get_f_proposal(sd*prop_sigma)
@@ -165,17 +203,20 @@ def run_simulation():
     plt.plot(xax, xmean, 'r*', label='posterior mean')
     plt.grid()
     plt.xlabel('Coeff. power')
+    plt.ylabel('Coeff. value')
     plt.legend()
     plt.savefig(pics_folder + 'poly_estimation.pdf')
     plt.figure()
-    plt.suptitle('Accept. ratio')
-    plt.plot(acceptance_ratios)
+    plt.ylabel('Accept. ratio')
+    plt.plot(acceptance_ratios, 'k')
+    plt.grid()
     plt.xlabel('Iteration')
     plt.savefig(pics_folder + 'poly_acceptance_ratio.pdf')
 
     plt.figure()
-    plt.suptitle('Log probs')
-    plt.plot(log_probs)
+    plt.ylabel('Log probs')
+    plt.plot(log_probs, 'k')
+    plt.grid()
     plt.xlabel('Iteration')
     plt.savefig(pics_folder + 'poly_log_probs.pdf')
 
