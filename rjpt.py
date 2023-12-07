@@ -1,7 +1,10 @@
-""" Description: Reverse-jump MCMC for polynomial regression Proposal is hard coded to be a Gaussian
+""" Description: 
+    Reverse-jump MCMC for polynomial regression 
+    Proposal is hard coded to be a Gaussian
     Birth-death proposal randomly selected at each step
+    Birth is linear transformation needs to be supplied 
 Date:
-    4/24/2023
+    12/4/2023
 
 Author: Hunter Akins
 
@@ -120,7 +123,9 @@ class AdaptiveTransDPTSampler:
     """
     Trans-dimensional parallel tempered sampler Use adaptive sampling (Haario) and user specified temperature ladder
     """
-    def __init__(self, move_probs, dim_list, beta_arr, f_log_prior, f_log_lh, f_proposal, f_log_gprime):
+    def __init__(self, move_probs, dim_list, beta_arr, 
+                       f_log_prior, f_log_lh, f_proposal, 
+                       f_log_gprime, h_diffeo_birth, J_birth, h_diffeo_death, J_death):
         """
         move_prob_list - list of list of move probabilities for each dimension
             move_prob_list[0] = [prob_pert, prob_birth, prob_death] for 
@@ -130,6 +135,10 @@ class AdaptiveTransDPTSampler:
         f_proposal - proposal function
         f_log_gprime - proposal density function for the scalar birth proposal
             necessary for computing the GMH coefficient for death move
+        h_diff_birth - diffeomorphism for birth move
+        J_birth - Jacobian of diffeomorphism for birth move
+        h_diff_death - diffeomorphism for death move
+        J_death - Jacobian of diffeomorphism for death move
         """
         self.moves = ['birth', 'death']
         self.dim_list = dim_list
@@ -142,6 +151,11 @@ class AdaptiveTransDPTSampler:
         self.f_log_gprime = f_log_gprime
         self.birth_sigma_sq = np.array([.25])
         self.no_birth_death=False
+        self.h_diffeo_birth = h_diffeo_birth
+        self.J_birth = J_birth
+        self.h_diffeo_death = h_diffeo_death
+        self.J_death = J_death
+
 
         self.death_log_p_ratio = []
         self.birth_log_p_ratio = []
@@ -282,13 +296,11 @@ class AdaptiveTransDPTSampler:
         p_birth = self.move_probs[dim_ind][0]
         p_death = self.move_probs[dim_ind+1][1]
         u, log_gu = self.f_proposal(self.birth_sigma_sq)
-        xprime = x.copy()
-        xprime[0] += 1 # update dimension
-        xprime[dim+1] = u # update new coefficient
+        xprime = self.h_diffeo_birth(x, u)
         log_prior = self.f_log_prior(xprime)
         log_lh = self.f_log_lh(xprime)
         log_p = log_prior + beta*log_lh # use temperature of chain...
-        alpha = (log_p - curr_log_p) +  (0.0 - log_gu) +  (np.log(p_death) - np.log(p_birth))
+        alpha = (log_p - curr_log_p) +  (0.0 - log_gu) +  (np.log(p_death) - np.log(p_birth)) + np.log(self.J_birth(x,u))
         if i == 1:
             self.birth_log_p_ratio.append(alpha)
         alpha = np.exp(alpha)
@@ -323,16 +335,13 @@ class AdaptiveTransDPTSampler:
         #move_p_ratio = self.move_probs[dim_ind][1]/self.move_probs[dim_ind-1][0] # death/birth
         p_death = self.move_probs[dim_ind][1]
         p_birth = self.move_probs[dim_ind-1][0]
-        xprime = x.copy()
-        xprime[0] -= 1 # update dimension
-        u = xprime[dim] # coefficient to be removed
-        xprime[dim] = 0 # update new coefficient
+        xprime, uprime = self.h_diffeo_death(x)
         log_prior = self.f_log_prior(xprime)
         log_lh = self.f_log_lh(xprime)
         sigma_sq = self.birth_sigma_sq
-        log_guprime = self.f_log_gprime(u, **{'sigma_sq':sigma_sq})
+        log_guprime = self.f_log_gprime(uprime, **{'sigma_sq':sigma_sq})
         log_p = log_prior + beta*log_lh
-        alpha = (log_p - curr_log_p) + (log_guprime - 0.0) + (np.log(p_birth)- np.log(p_death))
+        alpha = (log_p - curr_log_p) + (log_guprime - 0.0) + (np.log(p_birth)- np.log(p_death)) + np.log(self.J_death(x))
         if i == 1:
             self.death_log_p_ratio.append(alpha)
         alpha = np.exp(alpha)
