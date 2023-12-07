@@ -383,12 +383,12 @@ Then, the integrated detailed balance equation becomes
 
 Finally, then, we get that to satisfy detailed balance, it suffices to satisfy
 \begin{equation}
-\pi(x) g(u) \alpha\left(x^{\prime}(x, u), x\right)=\pi\left(x^{\prime}(x, u)\right) g^{\prime}\left(u^{\prime}(x, u)\right) \alpha\left(x, x^{\prime}(x, u)\right)\left|\frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right|
+\pi(x) g(u) \alpha\left(x^{\prime}(x, u), x\right)=\pi\left(x^{\prime}(x, u)\right) g^{\prime}\left(u^{\prime}(x, u)\right) \alpha\left(x, x^{\prime}(x, u)\right)\left|\frac{\partial (x^{\prime}, u^{\prime})}{\partial (x, u)}\right|
 \end{equation}
 
 If we choose
 \begin{equation}
-\alpha\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g^{\prime}\left(u^{\prime}\right)}{\pi(x) g(u)} \mid \frac{\partial x^{\prime}, u^{\prime}}{\partial x, u}\right\}
+\alpha\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g^{\prime}\left(u^{\prime}\right)}{\pi(x) g(u)} \vline \frac{\partial (x^{\prime}, u^{\prime})}{\partial (x, u)} \vline \right\}
 \end{equation}
 then we will satisfy detailed balance.
 
@@ -528,7 +528,10 @@ m_{k}=k, m_{0}, m_{1}, \ldots, m_{k}
 \caption{ Left: Posterior mean curve from trans-dimensional sampling. Right: Histogram of sample dimension (polynomial degree plus one). Note that most of the samples are at the correct model dimension of five (polynomial degree four). Comparison with analytic form of evidence shows good agreement. }
 \end{figure}
 
-\subsection{Sampler moves}
+We first develop a naive birth-death sampler that works with parallel tempering. 
+We then develop a more informed sampler that encourages mixing between dimension at lower temperatures.
+
+\subsection{Naive birth-death moves}
 
 We need to define the moves (proposal steps) that our chain will perform.
 
@@ -549,6 +552,41 @@ We see here that strictly trans-dimensional moves come in pairs, since the rever
 \begin{equation}
 \alpha_{\text {death }}\left(x^{\prime}, x\right)=\min \left\{1, \frac{\pi\left(x^{\prime}\right) g_{\text {birth }}(u) j_{\text {birth }}\left(x^{\prime}\right)}{\pi(x)(1) j_{\text {death }}(x)}\right\}
 \end{equation}
+
+
+\subsection{Better sampler moves}
+The previous section proposed birth and death moves in a simple way, but will have very poor mixing. 
+This is obvious if you consider a polynomial with a large leading coefficient. 
+The death move proposes a polynomial with that leading set to zero, which will be drastically different than the polynomial in the current state. 
+Since the chain is likely to be in a state that fits the data, this means that the proposed death move will probably correspond to a polynomial that does not fit the data.
+This means the acceptance ratio will be very low. 
+
+Consider the general linear model $ y = H_n x_n $, where the subscript $n$ denotes the dimension of $x$.
+Let's also assume that the number of measurements $N > n$ for all model dimensions $n$ (so $H_n$ is always a ``tall'' matrix). 
+
+In considering a death move, we propose a state $x_{n-1}$ with the dimension decreased by 1.
+A general death move is $M_{n, n-1} : \mathbb{R}^n \to \mathbb{R}^{n-1}$ that maps $x_n$ to $x_{n-1}$.
+For example, the previous section use \begin{equation}
+M_{n, n-1} =	 \begin{bmatrix} I_{n-1} & 0 \\ 0 & 0 \end{bmatrix} .
+\end{equation}
+
+We would like the proposed state to be likely. 
+We assume that the current state is likely. 
+Therefore, it makes sense to choose $M_{n, n-1}$ to minimize the norm of the residual
+\begin{equation}
+	r = H_{n-1} M_{n, n-1} x_n - H_{n} x_n = (H_{n-1} M_{n, n-1} - H_n) x_n . 
+\end{equation}
+Since $N > {n-1}$, $H_{n-1}$ is not invertible.
+However, we can define an invertible matrix by subsampling the data at $n-1$ times.
+These times correspond to $n-1$ rows of $H_{n-1}$ and $n-1$ rows of $H_n$, which we can put into matrices $G_{n-1}$ (which is invertible assuming they are chosen appropriately) and $G_n$. 
+Then $M_{n,n-1} = G_{n-1}^{-1} G_n$ defines a transformation from $x_n$ to a state $x_{n-1}$ that will be likely. 
+To completely define the diffeomorphism associated with the death move, I can associate the leading polynomial coefficient of $x_n$ with a random number $u$. 
+This defines a hopefully invertible transformation
+\begin{equation}
+	x_{n-1}, u = h(x) = \begin{bmatrix} G_{n-1}^{-1} G_n \\ 0 \dots 1 \end{bmatrix} x_n = A x_n . 
+\end{equation}
+The reverse mo
+ve is then defined by $ x_{n} = A^{-1} \begin{bmatrix} x_{n-1} \\ u \end{bmatrix}$. 
 
 
 
