@@ -72,6 +72,28 @@ def test_recursion(N, M):
     print('X', X)
     print('Cn diff', cov_diff)
     print("Cn ratio", Cn/ X)
+
+class SampleCovarianceMatrix:
+    def __init__(self, mu0, sigma0, N_samp):
+        """
+        Keep track of number of samples used in covariance
+        matrix estimation
+        """
+        self.mu = mu0 
+        self.sigma = sigma0
+        self.N_samp = N_samp
+
+    def _update(self, x):
+        """
+        Recursively update the SCM
+        to inclue the measurement x
+        """
+        mu = update_mean(self.mu, x, self.N_samp)
+        self.mu = mu
+        sigma = update_scm(self.sigma, mu, x, self.N_samp)
+        self.N_samp += 1
+        self.sigma = sigma
+        return mu, sigma, self.N_samp
   
 if __name__ == '__main__':
     np.random.seed(1)
