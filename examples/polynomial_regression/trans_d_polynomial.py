@@ -16,7 +16,8 @@ import matplotlib
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 matplotlib.rcParams['font.family'] = 'STIXGeneral'
 from samplers.likelihoods import GaussianLikelihood, MultimodalGaussianLikelihood, RosenbrockTwoD
-from samplers.poly_rj import AdaptiveTransDPTSampler, Chain, ChainParams, mh_walk
+#from samplers.poly_rj import AdaptiveTransDPTSampler, Chain, ChainParams, mh_walk
+from samplers.rjpt import AdaptiveTransDPTSampler, Chain, ChainParams, mh_walk
 from samplers.helpers import *
 from samplers.examples.polynomial_regression.gaussian_regression import get_evidence, get_post_mean_cov, get_H
 
