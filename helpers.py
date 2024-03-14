@@ -16,6 +16,7 @@ rc('text', usetex=True)
 import matplotlib
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 matplotlib.rcParams['font.family'] = 'STIXGeneral'
+from scipy import special
 
 def get_subplot_dims(dim):
     """
@@ -152,7 +153,16 @@ def get_opt_acc(dim):
     else: # return asymptotic acceptance rate
         return 0.234
 
-
+def unif_order_stat(yi, N, i, L):
+    """
+    Evaluate distribution of ith order statistic of N uniform random variables 
+    on interval [0, L] at the point yi
+    i = 1, 2, dots N
+    """
+    if i < 1 or i > N:
+        raise ValueError("i must be between 1 and N (inclusive)")
+    p = special.gamma(N) / (special.gamma(i-1) * special.gamma(N-i)) * np.power(yi/L, i-1) * np.power(1-yi/L, N-i) / L
+    return p
 if __name__ == '__main__':
     test_acorr()
     
