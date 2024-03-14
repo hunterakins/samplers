@@ -74,6 +74,7 @@ class Chain:
         self.death_proposals = 0
         self.birth_accepted = 0
         self.death_accepted = 0
+        self.pert_proposals = 0
         self.accepted = 0 # accepted perturbation steps
         self.acceptance_ratios = np.zeros(params.N)
         self.birth_acceptance_ratios = np.zeros(params.N)
@@ -140,7 +141,7 @@ class AdaptiveTransDPTSampler:
         h_diff_death - diffeomorphism for death move
         J_death - Jacobian of diffeomorphism for death move
         """
-        self.moves = ['birth', 'death']
+        self.moves = ['pert', 'birth', 'death']
         self.dim_list = dim_list
         self.num_dims = len(dim_list)
         self.move_probs = move_probs
@@ -150,7 +151,6 @@ class AdaptiveTransDPTSampler:
         self.f_proposal = f_proposal
         self.f_log_gprime = f_log_gprime
         self.birth_sigma_sq = np.array([.25])
-        self.no_birth_death=False
         self.h_diffeo_birth = h_diffeo_birth
         self.J_birth = J_birth
         self.h_diffeo_death = h_diffeo_death
@@ -285,10 +285,6 @@ class AdaptiveTransDPTSampler:
         chain = self.chain_list[i]
         chain.birth_proposals += 1
         x = chain.samples[:,j] # current state
-        if self.no_birth_death:
-            print('hi')
-            chain.samples[:,j+1] = x.copy()
-            return chain
         beta = chain.params.beta
         curr_log_p = chain.curr_log_p # log posterior of the current chain state (accounts for temp)
         dim = int(x[0])
@@ -306,6 +302,7 @@ class AdaptiveTransDPTSampler:
         alpha = np.exp(alpha)
         if np.random.rand() < alpha: # accept step
             chain.samples[:,j+1] = xprime.copy()
+            chain.log_probs[j+1] = log_p
             chain.curr_log_prior = log_prior
             chain.curr_log_lh = log_lh
             chain.curr_log_p = log_p
@@ -313,6 +310,7 @@ class AdaptiveTransDPTSampler:
             chain.birth_accepted += 1
         else:
             chain.samples[:,j+1] = x.copy()
+            chain.log_probs[j+1] = curr_log_p
             chain.birth_acceptance_log[j] = 0
         return chain
 
@@ -324,10 +322,6 @@ class AdaptiveTransDPTSampler:
         chain = self.chain_list[i]
         chain.death_proposals += 1
         x = chain.samples[:,j]
-        if self.no_birth_death:
-            print('hi')
-            chain.samples[:,j+1] = x.copy()
-            return chain
         beta = chain.params.beta
         curr_log_p = chain.curr_log_p # log posterior of the current chain state
         dim = int(x[0])
@@ -349,6 +343,7 @@ class AdaptiveTransDPTSampler:
         
         if np.random.rand() < alpha: #accept move
             chain.samples[:,j+1] = xprime 
+            chain.log_probs[j+1] = log_p
             chain.curr_log_prior = log_prior
             chain.curr_log_lh = log_lh
             chain.curr_log_p = log_p
@@ -357,6 +352,7 @@ class AdaptiveTransDPTSampler:
         else: # reject and keep the original sample
             chain.samples[:,j+1] = x
             chain.death_acceptance_log[0] = 1
+            chain.log_probs[j+1] = curr_log_p
         return chain
 
     def _perturb_move(self, i, j):
@@ -364,7 +360,8 @@ class AdaptiveTransDPTSampler:
         Just perturb chain and preserve dimension
         """
         chain = self.chain_list[i]
-        x = chain.samples[:,j+1] # since I have done either a birth or death move
+        chain.pert_proposals += 1
+        x = chain.samples[:,j] # 
         beta = chain.params.beta
         curr_log_p = chain.curr_log_p # log posterior of the current chain state
         dim = int(x[0])
@@ -390,7 +387,6 @@ class AdaptiveTransDPTSampler:
         else: # reject
             chain.samples[:,j+1] = x
             chain.log_probs[j+1] = curr_log_p
-        chain.acceptance_ratios[j] = (chain.accepted)/(j+1)
         return chain
 
     def _select_move(self, dim):
@@ -429,11 +425,14 @@ class AdaptiveTransDPTSampler:
             self._birth_move(i, j)
         elif move == 'death':
             self._death_move(i, j)
+        elif move == 'pert':
+            self._perturb_move(i, j)
         if chain.birth_proposals > 0:
             chain.birth_acceptance_ratios[j] = chain.birth_accepted/chain.birth_proposals
         if chain.death_proposals > 0:
             chain.death_acceptance_ratios[j] = chain.death_accepted/chain.death_proposals
-        self._perturb_move(i, j)
+        if chain.pert_proposals > 0:
+            chain.acceptance_ratios[j] = (chain.accepted)/(chain.pert_proposals)
         return
 
     def _swap_chains(self, j):

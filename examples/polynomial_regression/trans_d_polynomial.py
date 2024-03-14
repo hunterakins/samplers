@@ -381,10 +381,10 @@ def alternative_proposal_script():
     tgrid = np.linspace(-1, 2, N)
     num_chains = 1
     Tmax = 1
-    update_after_burn = False # don't update covariance matrices after burn in
+    update_after_burn = True # don't update covariance matrices after burn in
     eps = 1e-7
     dim_list = [2,3,4,5,6,7]
-    move_probs = [[1.0, 0.0]] + [[0.5, 0.5]]*(len(dim_list)-2) + [[0.0, 1.0]]
+    move_probs = [[1/2, 1/2, 0.0]] + [[0.5, 0.25, 0.25]]*(len(dim_list)-2) + [[1/2, 0.0, 1/2]]
     temp_ladder = np.exp(np.linspace(0, np.log(Tmax), num_chains))
     beta_arr  = 1/temp_ladder # convert to beta
 
