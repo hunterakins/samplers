@@ -62,8 +62,8 @@ class Chain:
         Initialize a chain with params
         """
         self.params = params
-        self.samples = np.zeros((params.dim, params.N+1))
-        self.log_probs = np.zeros(params.N+1)
+        self.samples = np.zeros((params.dim, params.N))
+        self.log_probs = np.zeros(params.N)
         self.acceptance_log = np.zeros(params.N)
         self.pert_proposals = 0
         self.accepted = 0 # accepted perturbation steps
@@ -131,7 +131,7 @@ class AdaptivePTSampler:
         self.f_log_lh = f_log_lh
         self.f_proposal = f_proposal
 
-    def tune_proposal(self, N_tune, f_prior, variance_range = np.logspace(-6, 0, 7)):
+    def tune_proposal(self, N_tune, f_prior, N_scm = 1000, variance_range = np.logspace(-6, 0, 7)):
         """
         For each chain and each dimension, run a sequence of perturb steps using a diagonal Gaussian proposal 
         with varying variances
@@ -142,7 +142,6 @@ class AdaptivePTSampler:
         num_chains = self.beta_arr.size
         dim = self.dim
         prop_covs = []
-        N_scm = 1000
         #plt.figure()
         best_vars = []
         for i in range(num_chains):
@@ -174,10 +173,11 @@ class AdaptivePTSampler:
             """
             prop_cov = np.eye(dim)*variance_range[best_i] # use best scaling for SCM estimation
             x_samples, acc_ratios, _ = mh_walk(x, N_scm, self.f_proposal, prop_cov*sd, self.f_log_prior, self.f_log_lh, beta)
+            x_samples = x_samples[:, ::10] #thin them a bit
             print('print prop cov tune acc ratio', acc_ratios[-1])
             sigma0 = (np.cov(x_samples)) # sample covariance matrix
             mu0 = np.zeros(dim)
-            scm = SampleCovarianceMatrix(mu0, sigma0, N_scm)
+            scm = SampleCovarianceMatrix(mu0, sigma0, x_samples.shape[1])
             prop_covs.append(scm)
         return prop_covs
                     
@@ -188,7 +188,8 @@ class AdaptivePTSampler:
         This proposal covariance will be used for the jump proposal until params.nu has been
         reached, at which point the SCM will be updated using the chain samples
         N - int
-            number of steps for chain to take (so final number of samples is N+1)
+            number of samples for chain to produce. Includes the iniital sample 
+            produced by running burn in
         f_prior - function
             takes in the dimension of the state and returns a random sample
         prop_covs - ...
@@ -197,7 +198,7 @@ class AdaptivePTSampler:
         """
         self.chain_list = []
         self.N_burn_in = N_burn_in
-        self.N_steps = N
+        self.N = N
         self.swap_interval = swap_interval
         dim = self.dim
         for i in range(len(self.beta_arr)): # for each temperature
@@ -213,7 +214,7 @@ class AdaptivePTSampler:
             self.chain_list.append(chain)
             chain.log_probs[0] = chain.curr_log_p
         self.prop_covs = prop_covs
-        self.swap_mat = np.zeros((len(self.beta_arr), N+1), dtype=int)
+        self.swap_mat = np.zeros((len(self.beta_arr), N), dtype=int)
         self.swap_mat[:,0] = np.arange(len(self.beta_arr))
         return
 
@@ -263,10 +264,10 @@ class AdaptivePTSampler:
         x = chain.samples[:, j+1]
         N_samp = prop_cov.N_samp
         if N_samp > chain.params.nu: # only update after we have obtained nu samples
-            if (j > self.N_burn_in) and  (chain_params.update_after_burn):
-                prop_cov.update(x)
+            if (j > self.N_burn_in) and  (chain.params.update_after_burn):
+                prop_cov._update(x)
             elif j < self.N_burn_in:
-                prop_cov.update(x)
+                prop_cov._update(x)
         return
 
     def _update_chain(self, i, j):
@@ -275,7 +276,6 @@ class AdaptivePTSampler:
         This populates sample j+1
         """
         chain = self.chain_list[i]
-        dim = int(chain.samples[0,j])
         move = self._select_move()
         if move == 'pert':
             self._perturb_move(i, j)
@@ -334,13 +334,40 @@ class AdaptivePTSampler:
                         self.swap_mat[cold_chain_ind, j+1] = t1
         return
 
+    def _burn_in(self):
+        """ 
+        Run sampler for N_burn_in steps
+        Update proposal covariance during this phase
+        THen clear the chains sample history and set the first sample to 
+        the final sample of the burn in period
+        """
+        N_burn_in = self.N_burn_in
+        num_temps = len(self.beta_arr)
+        for j in range(N_burn_in):
+            for i in range(num_temps):
+                self._update_chain(i,j) # propose plus accept/reject
+                self._update_cov(i,j) # updating proposal covariance matrix
+        for i in range(num_temps):
+            chain = self.chain_list[i]
+            final_sample = chain.samples[:,N_burn_in]
+            params=chain.params
+            log_prob = chain.curr_log_p
+            chain.samples = np.zeros((params.dim, params.N))
+            chain.samples[:,0] = final_sample.copy()
+            chain.log_probs[0] = log_prob
+            chain.accepted = 0
+            chain.pert_proposals = 0
+            chain.acceptance_ratios = np.zeros(params.N)
+        return
+        
     def sample(self):
         """
         Make N steps on each chain
         """
-        N = self.N_steps
+        N = self.N
         num_temps = len(self.beta_arr)
-        for j in range(N):
+        self._burn_in()
+        for j in range(N-1):
             for i in range(num_temps):
                 self._update_chain(i,j) # propose plus accept/reject
                 self._update_cov(i,j) # updating proposal covariance matrix
@@ -380,15 +407,15 @@ class AdaptivePTSampler:
 
     def get_chain_info(self, temp_i):
         inds = self.swap_mat[temp_i,:] 
-        N = self.N_steps
-        samples = np.zeros((self.dim, N+1))
-        log_probs = np.zeros((N+1))
-        acceptance_ratios = np.zeros(N)
+        N = self.N
+        samples = np.zeros((self.dim, N))
+        log_probs = np.zeros((N))
+        acceptance_ratios = np.zeros(N-1)
 
-        for k in range(N+1):
+        for k in range(N):
             samples[:,k] = self.chain_list[inds[k]].samples[:,k]
             log_probs[k] = self.chain_list[inds[k]].log_probs[k]
-            if k < N:
+            if k < N-1:
                 acceptance_ratios[k] = self.chain_list[inds[k]].acceptance_ratios[k]
         return samples, log_probs, acceptance_ratios
 
@@ -427,6 +454,7 @@ class AdaptivePTSampler:
         #for i in range(len(self.chain_list)):
         #    plt.plot(self.swap_mat[i,:])
         return  log_p_ar_fig, fig, ax
+
 
     def get_map_x(self, temp_i):
         """

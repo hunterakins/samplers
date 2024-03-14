@@ -21,6 +21,7 @@ from samplers.helpers import unif_order_stat
 import time
 from scipy import special
 from samplers.pt import AdaptivePTSampler, Chain, ChainParams, mh_walk
+from samplers.geo_pt import FixedDGeoSampler
 from optimiz import gi_helpers as gh
 
 def f_proposal(prop_cov):
@@ -100,14 +101,17 @@ def ex1():
     dim = k + 3*(k+1)
 
 
-    sampler = AdaptivePTSampler(move_probs, dim, beta_arr, 
-                                        f_log_prior_vec, f_log_lh_vec, f_proposal)
-    N_tune = 100
-    prop_covs = sampler.tune_proposal(N_tune, f_prior)
-    N_samples = int(10*1e4)
+    sampler = FixedDGeoSampler(move_probs, dim, beta_arr, 
+                                        f_log_prior_vec, f_log_lh_vec, f_proposal,
+                                        k, pos_range, c_range, rho_range, attn_range)
+    N_tune = 250
+    variance_ranges = np.logspace(-2, 0, 4)
+    N_scm = 2000
+    prop_covs = sampler.tune_proposal(N_tune, f_prior, variance_range=variance_ranges, N_scm=N_scm)
+    N_samples = int(2*1e4)
     update_after_burn = False
-    nu = N_samples # this means no adaptive update
-    N_burn_in = 100
+    N_burn_in = 1000
+    nu = N_burn_in # number of samples to run before adaptive update
     swap_interval = 10 # propose chain swaps every step
 
     """ 
@@ -118,6 +122,8 @@ def ex1():
 
     log_p_ar_fig, fig_ax_list, dim_fig = sampler.single_chain_diagnostic_plot(0)
 
+    sampler.plot_dist(0, N_bins=40)
+
     sampler.diagnostic_plot()
 
     x_map, l = sampler.get_map_x(0)
@@ -125,5 +131,6 @@ def ex1():
     env.plot_env()
 
     plt.show()
+
 
 ex1()
