@@ -13,10 +13,10 @@ Institution: Scripps Institution of Oceanography, UC San Diego
 import numpy as np
 from matplotlib import pyplot as plt
 from samplers.examples.piecewise_poly import pp_helpers as ph
-from samplers import cp_poly_rj as cpr
+from samplers import cp_rj as cpr
 
 
-dim = 4
+dim = 1
 birth_sigma = .1
 pert_sigma = 0.1
 f_birth_sample = ph.get_birth_sample(dim, birth_sigma)
@@ -25,7 +25,7 @@ f_pert_sample = ph.get_pert_sample(dim, pert_sigma)
 f_pert_log_prob = ph.get_pert_log_prob(pert_sigma)
 
 sigma_prior = 1.0
-lambd = 2
+lambd = 3
 kmax = 10
 interval = [0,1]
 L = interval[1] - interval[0]
@@ -34,7 +34,7 @@ f_prior_sample = ph.get_f_prior(sigma_prior, lambd, kmax, dim, interval)
 f_log_prior = ph.get_log_prior(sigma_prior, lambd, kmax, dim, interval, dirichlet=False)
 
 """ Draw a random state and generate some fake data """
-noise_std = 0.1
+noise_std = .5
 x_true = f_prior_sample()
 print('x_true', x_true)
 print('true num cp', x_true[0])
@@ -48,9 +48,8 @@ k_list = [x for x in range(kmax+1)]
 move_probs = [[1/3, 1/3, 1/3, 0]] +  [[1/3,1/3,1/6,1/6]]*(kmax-1) + [[1/3, 1/3, 0, 1/3]]
 print(move_probs)
 print(len(move_probs))
-#beta_arr = np.array([1.0, 10.0, 30.0])
-beta_arr = np.array([1.0,1/10, 1/30, 1/100.0])
-#beta_arr = np.array([1.0,5.0,20.0])
+beta_arr = np.array([1.0])
+#beta_arr = np.array([1.0,1/10, 1/30, 1/100.0])
 
 sampler = cpr.ChangePointSampler(move_probs, k_list, dim, beta_arr,
                                 f_log_prior, f_log_lh, interval,
@@ -84,6 +83,12 @@ for sampler_num in range(2):
     plt.plot(tgrid, y_msmt, 'k.')
     plt.plot(tgrid, mean_y, 'r--')
     plt.plot(tgrid, y_true, 'g')
+
+    plt.figure()
+    plt.plot(sampler.birth_log_p_ratio, label='birth ratio')
+    plt.plot(sampler.death_log_p_ratio, label='death ratio')
+    plt.legend()
+    plt.show()
     plt.show()
 
 

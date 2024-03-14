@@ -12,7 +12,7 @@ Institution: Scripps Institution of Oceanography, UC San Diego
 
 import numpy as np
 from matplotlib import pyplot as plt
-import samplers.cp_poly_rj as cpr
+import samplers.cp_rj as cpr
 from scipy import special
 
 
@@ -96,7 +96,7 @@ def unif_order_stat(yi, N, i, L):
 
 def get_log_prior(sigma_prior, lambd, kmax, state_dim, interval, dirichlet=False):
     """
-    Independent zero-mean Gaussian prior on the states with std sigma_prior
+    Independent zero-mean Gaussian prior on the states with Std sigma_prior
 
     Node number has Poisson distribution prior with parameter lam
     p(k) = e^{-\lambda} \frac{\lambda^{k}}{k !}
