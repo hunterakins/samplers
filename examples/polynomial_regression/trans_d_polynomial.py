@@ -216,7 +216,7 @@ def example_comparison_script():
     plt.plot(sampler.death_log_p_ratio, label='death log alpha')
     plt.plot(sampler.birth_log_p_ratio, label='birth log alpha')
     plt.legend()
-    cold_samples, log_probs, _, _, _ = sampler.get_chain_info(0) # get cold chain
+    cold_samples, log_probs, _, = sampler.get_chain_info(0) # get cold chain
     map_x = cold_samples[:, np.argmax(log_probs)]
     dim = int(map_x[0])
     map_coeff = map_x[1:dim+1]
@@ -427,7 +427,7 @@ def alternative_proposal_script():
     sampler.initialize_chains(N_samples, N_burn_in, nu, f_prior, update_after_burn, swap_interval, prop_covs)
     sampler.sample()
 
-    cold_samples, log_probs, _, _, _ = sampler.get_chain_info(0) # get cold chain
+    cold_samples, log_probs, _, _, _  = sampler.get_chain_info(0) # get cold chain
     map_x = cold_samples[:, np.argmax(log_probs)]
     dim = int(map_x[0])
     map_coeff = map_x[1:dim+1]

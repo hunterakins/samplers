@@ -65,20 +65,20 @@ class Chain:
         Initialize a chain with params
         """
         self.params = params
-        self.samples = np.zeros((params.max_dim+1, params.N+1))
-        self.log_probs = np.zeros(params.N+1)
-        self.acceptance_log = np.zeros(params.N)
-        self.birth_acceptance_log = np.zeros(params.N)
-        self.death_acceptance_log = np.zeros(params.N)
+        self.samples = np.zeros((params.max_dim+1, params.N))
+        self.log_probs = np.zeros(params.N)
+        self.acceptance_log = np.zeros(params.N-1)
+        self.birth_acceptance_log = np.zeros(params.N-1)
+        self.death_acceptance_log = np.zeros(params.N-1)
         self.birth_proposals = 0
         self.death_proposals = 0
         self.birth_accepted = 0
         self.death_accepted = 0
         self.pert_proposals = 0
         self.accepted = 0 # accepted perturbation steps
-        self.acceptance_ratios = np.zeros(params.N)
-        self.birth_acceptance_ratios = np.zeros(params.N)
-        self.death_acceptance_ratios = np.zeros(params.N)
+        self.acceptance_ratios = np.zeros(params.N-1)
+        self.birth_acceptance_ratios = np.zeros(params.N-1)
+        self.death_acceptance_ratios = np.zeros(params.N-1)
         self.curr_log_prior = None # priot
         self.curr_log_lh = None # likelihood
         self.curr_log_p = None # posterior
@@ -92,13 +92,13 @@ def mh_walk(x0, N_tune, f_proposal, prop_cov, f_log_prior, f_log_lh, beta):
     curr_log_prior = f_log_prior(x0)
     curr_log_lh = f_log_lh(x0)
     curr_log_p = curr_log_prior + beta*curr_log_lh
-    x_samples = np.zeros((x0.size, N_tune+1))
+    x_samples = np.zeros((x0.size, N_tune))
     x_samples[:,0] = x0
     accepted= 0
-    acceptance_ratios = np.zeros((N_tune))
-    log_post = np.zeros((N_tune + 1))
+    acceptance_ratios = np.zeros((N_tune-1))
+    log_post = np.zeros((N_tune))
     log_post[0] = curr_log_p
-    for j in range(1, N_tune+1):
+    for j in range(1, N_tune):
         x = x_samples[:, j-1].copy()
         u, gu = f_proposal(prop_cov)
         xprime = x.copy()
@@ -236,7 +236,7 @@ class AdaptiveTransDPTSampler:
         """
         self.chain_list = []
         self.N_burn_in = N_burn_in
-        self.N_steps = N
+        self.N = N
         self.swap_interval = swap_interval
         max_dim = max(self.dim_list)
         for i in range(len(self.beta_arr)): # for each temperature
@@ -444,16 +444,16 @@ class AdaptiveTransDPTSampler:
         self.swap_mat[:,j+1] = self.swap_mat[:,j].copy()
         swap_interval = self.swap_interval
         num_chains = self.beta_arr.size
-        if j > self.N_burn_in and (j%swap_interval==0):
+        if (j%swap_interval==0):
             # ........
             X = j / swap_interval
             even =  X% 2
             for chain_ind in range(num_chains-1):
                 # get two chains up for swap proposal
                 hot_chain_ind = num_chains - 1 - chain_ind
-                hot_chain = self.chain_list[self.swap_mat[hot_chain_ind, j+1]]
+                hot_chain = self.chain_list[hot_chain_ind]
                 cold_chain_ind = hot_chain_ind - 1
-                cold_chain = self.chain_list[self.swap_mat[cold_chain_ind, j+1]]
+                cold_chain = self.chain_list[cold_chain_ind]
                 if ((even) and (hot_chain_ind % 2 == 0)) or ((not even) and (hot_chain_ind % 2 == 1)):
 
                     # get their likelihood and temps for calculating proposal ratio
@@ -469,15 +469,23 @@ class AdaptiveTransDPTSampler:
                     omega = np.exp(log_omega)
                     u = np.random.rand()
                     if u < omega: # swap accepted
-                        ### The chains maintain their history but get a new temperature
-                        ### Their curr prob values need to be updated to reflect new temperatue
-                        hot_chain.curr_log_p = beta_cold * hot_chain.curr_log_lh + hot_chain.curr_log_prior
-                        cold_chain.curr_log_p = beta_hot * cold_chain.curr_log_lh + cold_chain.curr_log_prior
+                        x_hot = hot_chain.samples[:,j+1].copy()
+                        x_cold = cold_chain.samples[:,j+1].copy()
+                       
+                        cold_prior = cold_chain.curr_log_prior
+                        hot_prior = hot_chain.curr_log_prior
+                       
+                        hot_chain.samples[:,j+1] = x_cold
+                        cold_chain.samples[:,j+1] = x_hot
 
+                        hot_chain.curr_log_lh = cold_lh
+                        cold_chain.curr_log_lh = hot_lh
 
-                        #swap temperatures
-                        cold_chain.params.beta = beta_hot
-                        hot_chain.params.beta = beta_cold
+                        hot_chain.curr_log_prior = cold_prior
+                        cold_chain.curr_log_prior = hot_prior
+
+                        hot_chain.curr_log_p = beta_hot * hot_chain.curr_log_lh + hot_chain.curr_log_prior
+                        cold_chain.curr_log_p = beta_cold * cold_chain.curr_log_lh + cold_chain.curr_log_prior
 
                         # note it in the swap mat
                         t1 =  self.swap_mat[hot_chain_ind, j].copy()
@@ -490,9 +498,9 @@ class AdaptiveTransDPTSampler:
         """
         Make N steps on each chain
         """
-        N = self.N_steps
+        N = self.N
         num_temps = len(self.beta_arr)
-        for j in range(N):
+        for j in range(N-1):
             for i in range(num_temps):
                 self._update_chain(i,j) # propose plus accept/reject
                 self._update_cov(i,j) # updating proposal covariance matrix
@@ -556,21 +564,11 @@ class AdaptiveTransDPTSampler:
         return chain_fig_list, swap_fig
 
     def get_chain_info(self, temp_i):
-        inds = self.swap_mat[temp_i,:] 
-        N = self.N_steps
-        samples = np.zeros((max(self.dim_list) + 1, N+1))
-        log_probs = np.zeros((N+1))
-        acceptance_ratios = np.zeros(N)
-        birth_acceptance_ratios = np.zeros(N)
-        death_acceptance_ratios = np.zeros(N)
-
-        for k in range(N+1):
-            samples[:,k] = self.chain_list[inds[k]].samples[:,k]
-            log_probs[k] = self.chain_list[inds[k]].log_probs[k]
-            if k < N:
-                acceptance_ratios[k] = self.chain_list[inds[k]].acceptance_ratios[k]
-                birth_acceptance_ratios[k] = self.chain_list[inds[k]].birth_acceptance_ratios[k]
-                death_acceptance_ratios[k] = self.chain_list[inds[k]].death_acceptance_ratios[k]
+        samples = self.chain_list[temp_i].samples
+        log_probs = self.chain_list[temp_i].log_probs
+        acceptance_ratios = self.chain_list[temp_i].acceptance_ratios
+        birth_acceptance_ratios = self.chain_list[temp_i].birth_acceptance_ratios
+        death_acceptance_ratios = self.chain_list[temp_i].death_acceptance_ratios
         return samples, log_probs, acceptance_ratios, birth_acceptance_ratios, death_acceptance_ratios
 
     def single_chain_diagnostic_plot(self, temp_i, density=False):
@@ -579,9 +577,9 @@ class AdaptiveTransDPTSampler:
             index of temperature in temperature ladder
         """
         plt.figure()
-        plt.suptitle('Chain index corresponding to cold chain')
         beta = self.beta_arr[temp_i]
         t = 1/beta
+        plt.suptitle('Chain with T ={}'.format(t))
         plt.plot(self.swap_mat[temp_i,:])
         samples, log_probs, acceptance_ratios, birth_acceptance_ratios, death_acceptance_ratios = self.get_chain_info(temp_i)
         log_p_ar_fig, axes = plt.subplots(2,1)
@@ -592,8 +590,7 @@ class AdaptiveTransDPTSampler:
         axes[1].legend()
         axes[0].plot(log_probs)
         #axes[0,0].hist(self.samples, bins=50)
-    
-        # now get samples from same dims together...
+    # now get samples from same dims together...
         fig_ax_list = [plt.subplots(1, x) for x in self.dim_list]
         for dim_ind, dim in enumerate(self.dim_list):
             dim_mask = (samples[0,:] == dim)
